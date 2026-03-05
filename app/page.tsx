@@ -43,10 +43,23 @@ const birthMonths = [
 function getDays(month: string, year: string) {
   if (!month) return Array.from({length:31},(_,i)=>i+1);
   return Array.from(
-    { length: new Date(year||2000, parseInt(month,10), 0).getDate() },
+    { length: new Date(parseInt(year)||2000, parseInt(month,10), 0).getDate() },
     (_,i) => i+1
   );
 }
+```
+
+The only change is `year||2000` becomes `parseInt(year)||2000`.
+
+Save with Cmd+S, then run these in Terminal:
+```
+git add .
+```
+```
+git commit -m "fix types"
+```
+```
+git push
 
 const genderOptions       = ["Man","Woman","Non-binary","Prefer not to say"];
 const relationshipOptions = ["Single","Married","Partnered","Divorced","Widowed","Prefer not to say"];
