@@ -1,5 +1,20 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, ReactNode, ChangeEvent } from "react";
+
+// ── TYPES ───────────────────────────────────────────────────────
+type Season = "Identity" | "Exploration" | "Influence" | "Multiplication";
+type Alignment = "Behind" | "Aligned" | "Ahead";
+type ProfileKey = `${Season}_${Alignment}`;
+type SectionKey = "season" | "expertise" | "passion";
+
+interface ResultData {
+  profile: { name: string; mirrorLine: string; description: string; question: string };
+  behavioral: Season;
+  eStage: string;
+  pStage: string;
+  gap: string | null;
+  mismatch: string | null;
+}
 
 // ── TOKENS ─────────────────────────────────────────────────────
 const C = {
@@ -9,7 +24,7 @@ const C = {
 };
 
 // ── STATIC DATA ─────────────────────────────────────────────────
-const seasonDescriptions = {
+const seasonDescriptions: Record<string, string> = {
   Identity:       "Building the foundation — clarifying who you are, what you believe, and how you connect with others.",
   Exploration:    "Getting reps — trying things widely, taking on responsibility, learning what fits and what doesn't.",
   Influence:      "Going deep — focused, in your lane, using your expertise and passion to make a specific difference.",
@@ -26,13 +41,11 @@ const selfConfirmOptions = [
 const lifeEvents = [
   "Moved","Changed jobs","Graduated","Changed industries",
   "Promoted","Lost a job","Got married or remarried",
-  "Became a parent","Added to your family","Significant loss",
-  "Change in relationship status","Health challenge",
-  "Financial shift","None of these",
+  "Had a child","Lost someone close to me","Health crisis",
+  "Started a business","Retired","None of these",
 ];
 
-const currentYear = new Date().getFullYear();
-const birthYears  = Array.from({ length: currentYear - 1919 }, (_, i) => currentYear - i);
+const birthYears = Array.from({length:70},(_,i)=>String(new Date().getFullYear()-16-i));
 const birthMonths = [
   {v:"01",l:"January"},{v:"02",l:"February"},{v:"03",l:"March"},
   {v:"04",l:"April"},{v:"05",l:"May"},{v:"06",l:"June"},
@@ -47,19 +60,6 @@ function getDays(month: string, year: string) {
     (_,i) => i+1
   );
 }
-```
-
-The only change is `year||2000` becomes `parseInt(year)||2000`.
-
-Save with Cmd+S, then run these in Terminal:
-```
-git add .
-```
-```
-git commit -m "fix types"
-```
-```
-git push
 
 const genderOptions       = ["Man","Woman","Non-binary","Prefer not to say"];
 const relationshipOptions = ["Single","Married","Partnered","Divorced","Widowed","Prefer not to say"];
@@ -100,27 +100,27 @@ const questions = {
 };
 
 // ── SCORING ────────────────────────────────────────────────────
-const seasonOrder = {Identity:0,Exploration:1,Influence:2,Multiplication:3};
+const seasonOrder: Record<string, number> = {Identity:0,Exploration:1,Influence:2,Multiplication:3};
 
-function computeSeasonScore(ans) {
-  const s = {Identity:0,Exploration:0,Influence:0,Multiplication:0};
+function computeSeasonScore(ans: Record<string, number>) {
+  const s: Record<string, number> = {Identity:0,Exploration:0,Influence:0,Multiplication:0};
   questions.season.forEach(q=>{const v=ans[q.id]||3; s[q.season]+=q.inverse?6-v:v;});
   return Object.entries(s).sort((a,b)=>b[1]-a[1])[0][0];
 }
-function computeStage(section, ans) {
-  const s = {Identity:0,Exploration:0,Influence:0,Multiplication:0};
-  questions[section].filter(q=>!q.bs).forEach(q=>{
+function computeStage(section: SectionKey, ans: Record<string, number>) {
+  const s: Record<string, number> = {Identity:0,Exploration:0,Influence:0,Multiplication:0};
+  (questions[section] as Array<{id: string; text: string; stage?: string; inverse?: boolean; bs?: boolean}>).filter(q=>!q.bs).forEach(q=>{
     if (!q.stage||q.stage==="BS") return;
     const v = q.inverse?6-(ans[q.id]||3):(ans[q.id]||3);
     s[q.stage]=(s[q.stage]||0)+v;
   });
   return Object.entries(s).sort((a,b)=>b[1]-a[1])[0][0];
 }
-function getAlignment(stage, season) {
+function getAlignment(stage: string, season: string): Alignment {
   const d=seasonOrder[stage]-seasonOrder[season];
   return d<0?"Behind":d>0?"Ahead":"Aligned";
 }
-function getOverallAlignment(eS,pS,season) {
+function getOverallAlignment(eS: string, pS: string, season: string): Alignment {
   const eA=getAlignment(eS,season), pA=getAlignment(pS,season);
   if (eA==="Aligned"&&pA==="Aligned") return "Aligned";
   if ((eA==="Behind"||pA==="Behind")&&eA!=="Ahead"&&pA!=="Ahead") return "Behind";
@@ -129,7 +129,7 @@ function getOverallAlignment(eS,pS,season) {
 }
 
 // ── PROFILES ───────────────────────────────────────────────────
-const profiles = {
+const profiles: Record<string, {name: string; mirrorLine: string; description: string; question: string}> = {
   Identity_Behind:        {name:"Foundation",        mirrorLine:"You're in the foundation season, but you haven't started building yet.",                 description:"Something is keeping you from the work of this season — whether that's distraction, discomfort, or just not knowing where to start. The foundation isn't optional. It's not something you come back and build later. The good news is that you're not behind — you're here, and here is exactly where this starts.",                                                                                         question:"What would I need to believe about myself to actually begin?"},
   Identity_Aligned:       {name:"Groundwork",        mirrorLine:"You're doing the hardest work there is — and it doesn't look like much yet.",             description:"The foundation season is easy to underestimate, mostly because it's invisible. Nobody builds a house because they're excited about concrete. But without what gets built here — a clear sense of who you are, what you believe, how you connect — everything else wobbles. You're in it. Stay in it.",                                                                                                          question:"What do I believe about myself that I haven't said out loud yet?"},
   Identity_Ahead:         {name:"Ahead of Yourself", mirrorLine:"You're reaching for influence before the foundation is ready to hold it.",                 description:"The ambition is real, and there's nothing wrong with it. But the drive to get to the next thing is moving faster than the work of this season. What gets skipped here doesn't disappear — it shows up later, under more pressure, with higher stakes. The fastest way forward right now is to slow down enough to build something that holds.",                                                               question:"What am I hoping to skip, and what will it cost me later?"},
@@ -144,18 +144,18 @@ const profiles = {
   Multiplication_Ahead:   {name:"Not Done Yet",      mirrorLine:"You've mentally moved on before this season is finished.",                                  description:"There's a version of checking out that looks like wisdom from the outside. It has the right vocabulary — legacy, investment, stepping back. But it's still checking out. Multiplication is not retirement. There's still significant work to do, and you're in a position few people ever reach. The question isn't whether you've earned the right to slow down. It's whether slowing down is what this season actually needs from you.", question:"What would I regret not doing while I still have the energy and the access to do it?"},
 };
 
-function getProfile(season,eS,pS){
+function getProfile(season: string, eS: string, pS: string){
   const key=`${season}_${getOverallAlignment(eS,pS,season)}`;
   return profiles[key]||profiles[`${season}_Aligned`];
 }
-function getGapLanguage(eS,pS,season){
+function getGapLanguage(eS: string, pS: string, season: string){
   const eA=getAlignment(eS,season),pA=getAlignment(pS,season);
   if (eA===pA) return null;
   return seasonOrder[eS]>seasonOrder[pS]
     ?"One thing worth noting: your expertise is further along than your passion right now. You're developing real capability — but the why underneath it is still forming. Skill without a cause can start to feel like running without a destination."
     :"One thing worth noting: your passion is ahead of your expertise right now. You know what you care about — but the craft to do something meaningful about it is still being built. The cause deserves a skill worthy of it.";
 }
-function getMismatchLanguage(self,behavioral){
+function getMismatchLanguage(self: string | null, behavioral: string){
   if (!self||self===behavioral) return null;
   const diff=Math.abs(seasonOrder[self]-seasonOrder[behavioral]);
   return diff===1
@@ -176,7 +176,7 @@ function DotCloud() {
   );
 }
 
-function BackArrow({onClick}) {
+function BackArrow({onClick}: {onClick: () => void}) {
   return (
     <button onClick={onClick} aria-label="Go back" style={{
       display:"flex",alignItems:"center",justifyContent:"center",
@@ -193,7 +193,7 @@ function BackArrow({onClick}) {
 
 // Shared top-bar used on ALL non-landing screens
 // Matches question pages: back arrow left, optional label right
-function TopBar({onBack, label=""}) {
+function TopBar({onBack, label=""}: {onBack: () => void; label?: string}) {
   return (
     <div style={{
       display:"flex",alignItems:"center",justifyContent:"space-between",
@@ -212,7 +212,7 @@ function TopBar({onBack, label=""}) {
   );
 }
 
-function PrimaryBtn({children,onClick,disabled}) {
+function PrimaryBtn({children,onClick,disabled}: {children: ReactNode; onClick: () => void; disabled?: boolean}) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
       display:"flex",alignItems:"center",justifyContent:"center",
@@ -226,7 +226,7 @@ function PrimaryBtn({children,onClick,disabled}) {
   );
 }
 
-function SecondaryBtn({children,onClick}) {
+function SecondaryBtn({children,onClick}: {children: ReactNode; onClick?: () => void}) {
   return (
     <button onClick={onClick} style={{
       display:"flex",alignItems:"center",justifyContent:"center",
@@ -238,12 +238,12 @@ function SecondaryBtn({children,onClick}) {
   );
 }
 
-function FieldLabel({children}) {
+function FieldLabel({children}: {children: ReactNode}) {
   return <label style={{display:"block",fontSize:13,fontWeight:600,color:C.ink,marginBottom:7}}>{children}</label>;
 }
 
 // Native select with custom chevron — no focus issues on iOS
-function NativeSelect({label, value, onChange, children, style={}}) {
+function NativeSelect({label, value, onChange, children, style={}}: {label?: string; value: string; onChange: (e: ChangeEvent<HTMLSelectElement>) => void; children: ReactNode; style?: React.CSSProperties}) {
   return (
     <div style={style}>
       {label && <FieldLabel>{label}</FieldLabel>}
@@ -275,7 +275,7 @@ function NativeSelect({label, value, onChange, children, style={}}) {
 }
 
 // Text input — font-size 16px prevents iOS zoom
-function TextInput({label, value, onChange, placeholder, type="text", autoComplete, inputMode, style={}}) {
+function TextInput({label, value, onChange, placeholder, type="text", autoComplete, inputMode, style={}}: {label?: string; value: string; onChange: (e: ChangeEvent<HTMLInputElement>) => void; placeholder: string; type?: string; autoComplete?: string; inputMode?: string; style?: React.CSSProperties}) {
   return (
     <div style={style}>
       {label && <FieldLabel>{label}</FieldLabel>}
@@ -285,7 +285,7 @@ function TextInput({label, value, onChange, placeholder, type="text", autoComple
         onChange={onChange}
         placeholder={placeholder}
         autoComplete={autoComplete}
-        inputMode={inputMode}
+        inputMode={inputMode as React.HTMLAttributes<HTMLInputElement>["inputMode"]}
         style={{
           width:"100%",height:50,
           border:`1.5px solid ${value ? C.ink : C.border}`,
@@ -334,23 +334,28 @@ const globalCss = `
 export default function App() {
   // step: 0=landing 1=name/email 2=disclaimer 3=context 4=life events 5=season 6=questions 7=processing 8=results
   const [step, setStep]     = useState(0);
-  const [form, setForm]     = useState({
+  const [form, setForm]     = useState<{
+    firstName: string; lastName: string; email: string;
+    dobMonth: string; dobDay: string; dobYear: string;
+    gender: string; vocation: string; relationship: string;
+    lifeEvents: string[]; selfSeason: string | null;
+  }>({
     firstName:"", lastName:"", email:"",
     dobMonth:"", dobDay:"", dobYear:"",
     gender:"", vocation:"", relationship:"",
     lifeEvents:[], selfSeason:null,
   });
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState<Record<string, number>>({});
   const [qIndex,  setQIndex]  = useState(0);
-  const [result,  setResult]  = useState(null);
+  const [result,  setResult]  = useState<ResultData | null>(null);
   const [copied,  setCopied]  = useState(false);
   // Track whether auto-advance is locked (prevents double-fire)
   const [advancing, setAdvancing] = useState(false);
 
   const allQ = [
-    ...questions.season.map(q=>({...q,section:"season"})),
-    ...questions.expertise.map(q=>({...q,section:"expertise"})),
-    ...questions.passion.map(q=>({...q,section:"passion"})),
+    ...questions.season.map(q=>({...q,section:"season" as const})),
+    ...questions.expertise.map(q=>({...q,section:"expertise" as const})),
+    ...questions.passion.map(q=>({...q,section:"passion" as const})),
   ];
   const totalQ = allQ.length;
   const q = allQ[qIndex];
@@ -367,13 +372,13 @@ export default function App() {
     const profile    = getProfile(behavioral,eStage,pStage);
     const gap        = getGapLanguage(eStage,pStage,behavioral);
     const mismatch   = getMismatchLanguage(form.selfSeason,behavioral);
-    setResult({profile,behavioral,eStage,pStage,gap,mismatch});
+    setResult({profile,behavioral: behavioral as Season,eStage,pStage,gap,mismatch});
     const t = setTimeout(()=>setStep(8),2600);
     return ()=>clearTimeout(t);
   },[step]); // eslint-disable-line
 
   // Auto-advance after answer selection — debounced, locked to prevent double-fire
-  const handleAnswer = useCallback((id, val) => {
+  const handleAnswer = useCallback((id: string, val: number) => {
     if (advancing) return;
     setAdvancing(true);
     setAnswers(prev=>({...prev,[id]:val}));
@@ -384,7 +389,7 @@ export default function App() {
     }, 400);
   },[advancing, qIndex, totalQ]);
 
-  const toggleEvent = (ev) => {
+  const toggleEvent = (ev: string) => {
     if (ev==="None of these"){ setForm(f=>({...f,lifeEvents:["None of these"]})); return; }
     setForm(f=>{
       const flt = f.lifeEvents.filter(e=>e!=="None of these");
@@ -392,7 +397,7 @@ export default function App() {
     });
   };
 
-  const handleShare = async(platform) => {
+  const handleShare = async(platform: string) => {
     const text = `I just took the On Purpose Assessment and got "${result?.profile?.name}". Find out where you are: `;
     const url  = window.location.href;
     if (platform==="copy"){
@@ -418,23 +423,23 @@ export default function App() {
   const days = getDays(form.dobMonth, form.dobYear);
 
   // Body container for non-landing, non-question screens
-  const Screen = ({children, maxW=580}) => (
+  const Screen = ({children, maxW=580}: {children: ReactNode; maxW?: number}) => (
     <div className="fu" style={{maxWidth:maxW,margin:"0 auto",padding:"0 22px 64px"}}>
       {children}
     </div>
   );
 
-  const SectionTitle = ({children}) => (
+  const SectionTitle = ({children}: {children: ReactNode}) => (
     <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
       fontSize:"clamp(22px,4vw,30px)",fontWeight:600,lineHeight:1.25,
       color:C.ink,marginBottom:10}}>{children}</h2>
   );
 
-  const BodyText = ({children, style={}}) => (
+  const BodyText = ({children, style={}}: {children: ReactNode; style?: React.CSSProperties}) => (
     <p style={{fontSize:15,lineHeight:1.68,color:C.inkMid,marginBottom:22,...style}}>{children}</p>
   );
 
-  const Card = ({children, style={}}) => (
+  const Card = ({children, style={}}: {children: ReactNode; style?: React.CSSProperties}) => (
     <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,
       padding:24,boxShadow:"0 1px 8px rgba(28,27,25,0.05)",marginBottom:16,...style}}>
       {children}
@@ -506,16 +511,16 @@ export default function App() {
                 <div style={fieldGap}>
                   <TextInput label="First name" value={form.firstName} placeholder="First name"
                     autoComplete="given-name"
-                    onChange={e=>setForm(f=>({...f,firstName:e.target.value}))}/>
+                    onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,firstName:e.target.value}))}/>
                 </div>
                 <div style={fieldGap}>
                   <TextInput label="Last name" value={form.lastName} placeholder="Last name"
                     autoComplete="family-name"
-                    onChange={e=>setForm(f=>({...f,lastName:e.target.value}))}/>
+                    onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,lastName:e.target.value}))}/>
                 </div>
                 <TextInput label="Email address" value={form.email} type="email"
                   placeholder="your@email.com" autoComplete="email" inputMode="email"
-                  onChange={e=>setForm(f=>({...f,email:e.target.value}))}/>
+                  onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,email:e.target.value}))}/>
               </Card>
               <PrimaryBtn onClick={()=>setStep(2)} disabled={!can1}>Continue</PrimaryBtn>
               <PoweredBy/>
@@ -559,17 +564,17 @@ export default function App() {
                   <FieldLabel>Date of birth</FieldLabel>
                   <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1.4fr",gap:10}}>
                     <NativeSelect value={form.dobMonth}
-                      onChange={e=>setForm(f=>({...f,dobMonth:e.target.value,dobDay:""}))}>
+                      onChange={(e: ChangeEvent<HTMLSelectElement>)=>setForm(f=>({...f,dobMonth:e.target.value,dobDay:""}))}>
                       <option value="">Month</option>
                       {birthMonths.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}
                     </NativeSelect>
                     <NativeSelect value={form.dobDay}
-                      onChange={e=>setForm(f=>({...f,dobDay:e.target.value}))}>
+                      onChange={(e: ChangeEvent<HTMLSelectElement>)=>setForm(f=>({...f,dobDay:e.target.value}))}>
                       <option value="">Day</option>
                       {days.map(d=><option key={d} value={String(d).padStart(2,"0")}>{d}</option>)}
                     </NativeSelect>
                     <NativeSelect value={form.dobYear}
-                      onChange={e=>setForm(f=>({...f,dobYear:e.target.value}))}>
+                      onChange={(e: ChangeEvent<HTMLSelectElement>)=>setForm(f=>({...f,dobYear:e.target.value}))}>
                       <option value="">Year</option>
                       {birthYears.map(y=><option key={y} value={y}>{y}</option>)}
                     </NativeSelect>
@@ -579,12 +584,12 @@ export default function App() {
                 {/* Gender + Relationship — side by side */}
                 <div style={{...fieldGap,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <NativeSelect label="Gender" value={form.gender}
-                    onChange={e=>setForm(f=>({...f,gender:e.target.value}))}>
+                    onChange={(e: ChangeEvent<HTMLSelectElement>)=>setForm(f=>({...f,gender:e.target.value}))}>
                     <option value="">Select</option>
                     {genderOptions.map(g=><option key={g} value={g}>{g}</option>)}
                   </NativeSelect>
                   <NativeSelect label="Relationship status" value={form.relationship}
-                    onChange={e=>setForm(f=>({...f,relationship:e.target.value}))}>
+                    onChange={(e: ChangeEvent<HTMLSelectElement>)=>setForm(f=>({...f,relationship:e.target.value}))}>
                     <option value="">Select</option>
                     {relationshipOptions.map(r=><option key={r} value={r}>{r}</option>)}
                   </NativeSelect>
@@ -593,7 +598,7 @@ export default function App() {
                 {/* Vocation */}
                 <TextInput label="Current vocation" value={form.vocation}
                   placeholder="What do you do?" autoComplete="organization-title"
-                  onChange={e=>setForm(f=>({...f,vocation:e.target.value}))}/>
+                  onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,vocation:e.target.value}))}/>
               </Card>
               <PrimaryBtn onClick={()=>setStep(4)} disabled={!can3}>Continue</PrimaryBtn>
               <PoweredBy/>
@@ -764,7 +769,7 @@ export default function App() {
             <p className="fu" style={{fontFamily:"'Playfair Display',Georgia,serif",
               fontSize:18,fontStyle:"italic",color:C.inkMid,lineHeight:1.55,
               marginBottom:34,animationDelay:"0.3s"}}>
-              "{result.profile.mirrorLine}"
+              &ldquo;{result.profile.mirrorLine}&rdquo;
             </p>
 
             <Divider/>
@@ -813,7 +818,7 @@ export default function App() {
               </div>
               <div style={{fontFamily:"'Playfair Display',Georgia,serif",
                 fontSize:"clamp(18px,3vw,22px)",fontWeight:600,lineHeight:1.4,color:C.ink}}>
-                "{result.profile.question}"
+                &ldquo;{result.profile.question}&rdquo;
               </div>
             </div>
 
@@ -822,7 +827,7 @@ export default function App() {
             {/* What's Next — vertically stacked */}
             <div style={{animation:"fadeUp 0.5s ease-out 0.8s both"}}>
               <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.08em",
-                textTransform:"uppercase",color:C.sage,marginBottom:9}}>What's Next</div>
+                textTransform:"uppercase",color:C.sage,marginBottom:9}}>What&apos;s Next</div>
               <p style={{fontSize:16,lineHeight:1.75,color:C.ink,marginBottom:16}}>
                 The On Purpose Assessment is a starting point. If something in your results landed — or if something felt unresolved — there are a few ways to keep going.
               </p>
@@ -839,7 +844,7 @@ export default function App() {
                     <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,
                       fontWeight:600,color:C.ink,marginBottom:8}}>{cta.title}</div>
                     <p style={{fontSize:14,lineHeight:1.6,color:C.inkMid,marginBottom:16}}>{cta.body}</p>
-                    <SecondaryBtn>Learn More →</SecondaryBtn>
+                    <SecondaryBtn>Learn More &rarr;</SecondaryBtn>
                   </div>
                 ))}
               </div>
