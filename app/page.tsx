@@ -794,8 +794,14 @@ export default function App() {
 
             <div className="fu" style={{fontFamily:"'DM Mono',monospace",fontSize:11,
               letterSpacing:"0.12em",textTransform:"uppercase",color:C.sage,
-              marginBottom:12,animationDelay:"0.1s"}}>
-              Your On Purpose Snapshot
+              marginBottom:14,animationDelay:"0.1s"}}>
+              Your Season
+            </div>
+
+            <div className="fu" style={{fontFamily:"'Playfair Display',Georgia,serif",
+              fontSize:"clamp(26px,5.5vw,38px)",fontWeight:700,color:C.sage,
+              lineHeight:1.1,marginBottom:6,animationDelay:"0.15s"}}>
+              {result.behavioral}
             </div>
 
             <h1 className="fu" style={{fontFamily:"'Playfair Display',Georgia,serif",
@@ -808,28 +814,20 @@ export default function App() {
 
             <p className="fu" style={{fontFamily:"'Playfair Display',Georgia,serif",
               fontSize:18,fontStyle:"italic",color:C.inkMid,lineHeight:1.55,
-              marginBottom:34,animationDelay:"0.3s"}}>
+              marginBottom:10,animationDelay:"0.3s"}}>
               &ldquo;{result.profile.mirrorLine}&rdquo;
             </p>
 
-            <Divider/>
-
-            {/* Your Season */}
-            <div style={{animation:"fadeUp 0.5s ease-out 0.35s both"}}>
-              <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.08em",
-                textTransform:"uppercase",color:C.sage,marginBottom:9}}>Your Season</div>
-              <div style={{display:"inline-flex",alignItems:"center",gap:7,
-                background:C.sageLight,color:"#4A5C49",borderRadius:100,
-                padding:"5px 13px",fontSize:13,fontWeight:600,marginBottom:12}}>
-                <div style={{width:7,height:7,borderRadius:"50%",background:C.sage}}/>
-                {result.behavioral}
+            {result.mismatch && (
+              <div className="fu" style={{background:C.redLight,borderLeft:`3px solid ${C.red}`,
+                borderRadius:"0 9px 9px 0",padding:"13px 17px",marginTop:13,
+                fontSize:14,lineHeight:1.65,color:C.inkMid,animationDelay:"0.35s"}}>
+                {result.mismatch}
               </div>
+            )}
+
+            <div className="fu" style={{marginTop:16,animationDelay:"0.35s"}}>
               <p style={{fontSize:16,lineHeight:1.75,color:C.ink}}>{seasonDescriptions[result.behavioral]}</p>
-              {result.mismatch && (
-                <div style={{background:C.redLight,borderLeft:`3px solid ${C.red}`,
-                  borderRadius:"0 9px 9px 0",padding:"13px 17px",marginTop:13,
-                  fontSize:14,lineHeight:1.65,color:C.inkMid}}>{result.mismatch}</div>
-              )}
             </div>
 
             <Divider/>
