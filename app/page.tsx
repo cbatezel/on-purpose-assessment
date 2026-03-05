@@ -330,6 +330,38 @@ const globalCss = `
   *{-webkit-tap-highlight-color:transparent}
 `;
 
+// Body container for non-landing, non-question screens
+function Screen({children, maxW=580}: {children: ReactNode; maxW?: number}) {
+  return (
+    <div className="fu" style={{maxWidth:maxW,margin:"0 auto",padding:"0 22px 64px"}}>
+      {children}
+    </div>
+  );
+}
+
+function SectionTitle({children}: {children: ReactNode}) {
+  return (
+    <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
+      fontSize:"clamp(22px,4vw,30px)",fontWeight:600,lineHeight:1.25,
+      color:C.ink,marginBottom:10}}>{children}</h2>
+  );
+}
+
+function BodyText({children, style={}}: {children: ReactNode; style?: React.CSSProperties}) {
+  return (
+    <p style={{fontSize:15,lineHeight:1.68,color:C.inkMid,marginBottom:22,...style}}>{children}</p>
+  );
+}
+
+function Card({children, style={}}: {children: ReactNode; style?: React.CSSProperties}) {
+  return (
+    <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,
+      padding:24,boxShadow:"0 1px 8px rgba(28,27,25,0.05)",marginBottom:16,...style}}>
+      {children}
+    </div>
+  );
+}
+
 // ── MAIN APP ───────────────────────────────────────────────────
 export default function App() {
   // step: 0=landing 1=name/email 2=disclaimer 3=context 4=life events 5=season 6=questions 7=processing 8=results
@@ -421,30 +453,6 @@ export default function App() {
   const can5 = !!form.selfSeason;
 
   const days = getDays(form.dobMonth, form.dobYear);
-
-  // Body container for non-landing, non-question screens
-  const Screen = ({children, maxW=580}: {children: ReactNode; maxW?: number}) => (
-    <div className="fu" style={{maxWidth:maxW,margin:"0 auto",padding:"0 22px 64px"}}>
-      {children}
-    </div>
-  );
-
-  const SectionTitle = ({children}: {children: ReactNode}) => (
-    <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
-      fontSize:"clamp(22px,4vw,30px)",fontWeight:600,lineHeight:1.25,
-      color:C.ink,marginBottom:10}}>{children}</h2>
-  );
-
-  const BodyText = ({children, style={}}: {children: ReactNode; style?: React.CSSProperties}) => (
-    <p style={{fontSize:15,lineHeight:1.68,color:C.inkMid,marginBottom:22,...style}}>{children}</p>
-  );
-
-  const Card = ({children, style={}}: {children: ReactNode; style?: React.CSSProperties}) => (
-    <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,
-      padding:24,boxShadow:"0 1px 8px rgba(28,27,25,0.05)",marginBottom:16,...style}}>
-      {children}
-    </div>
-  );
 
   // Gap between stacked fields inside a card
   const fieldGap = {marginBottom:18};
