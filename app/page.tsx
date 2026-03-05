@@ -40,7 +40,7 @@ const birthMonths = [
   {v:"10",l:"October"},{v:"11",l:"November"},{v:"12",l:"December"},
 ];
 
-function getDays(month, year) {
+function getDays(month: string, year: string) {
   if (!month) return Array.from({length:31},(_,i)=>i+1);
   return Array.from(
     { length: new Date(year||2000, parseInt(month,10), 0).getDate() },
