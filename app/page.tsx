@@ -898,8 +898,31 @@ export default function App() {
 
             <Divider/>
 
+            {/* Go Deeper */}
+            <div style={{animation:"fadeUp 0.5s ease-out 0.9s both"}}>
+              <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.08em",
+                textTransform:"uppercase",color:C.sage,marginBottom:9}}>Go Deeper</div>
+              <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:20,
+                fontWeight:600,color:C.ink,marginBottom:12}}>
+                On Purpose by Beau Johnson
+              </div>
+              <p style={{fontSize:16,lineHeight:1.75,color:C.ink,marginBottom:20}}>
+                Most ways of finding purpose don&apos;t work. If you&apos;ve wrestled with wanting to live big without losing contentment, this book is for you. Clarity about our lives is possible. Purpose is within reach in every industry and every stage of life. This book shows you how.
+              </p>
+              <a href="https://www.amazon.com/Purpose-Beau-Johnson/dp/B0FRMXCDWS" target="_blank" rel="noopener noreferrer"
+                style={{
+                  display:"inline-flex",alignItems:"center",justifyContent:"center",
+                  padding:"12px 28px",borderRadius:10,border:"none",
+                  fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:600,
+                  background:C.red,color:"white",cursor:"pointer",letterSpacing:"0.01em",
+                  textDecoration:"none",
+                }}>Get the Book</a>
+            </div>
+
+            <Divider/>
+
             {/* Share */}
-            <div style={{textAlign:"center",paddingTop:24,animation:"fadeUp 0.5s ease-out 0.95s both"}}>
+            <div style={{textAlign:"center",paddingTop:24,animation:"fadeUp 0.5s ease-out 1.05s both"}}>
               <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:20,
                 fontWeight:600,color:C.ink,marginBottom:7}}>
                 Share your snapshot<span style={{color:C.red}}>.</span>
