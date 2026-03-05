@@ -864,18 +864,21 @@ export default function App() {
 
             <Divider/>
 
-            {/* What's Next — vertically stacked */}
-            <div style={{animation:"fadeUp 0.5s ease-out 0.8s both"}}>
-              <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.08em",
-                textTransform:"uppercase",color:C.sage,marginBottom:9}}>What&apos;s Next</div>
-              <p style={{fontSize:16,lineHeight:1.75,color:C.ink,marginBottom:16}}>
+            {/* What's Next */}
+            <div style={{animation:"fadeUp 0.5s ease-out 0.8s both",paddingTop:16}}>
+              <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
+                fontSize:"clamp(24px,5vw,32px)",fontWeight:700,lineHeight:1.2,
+                color:C.ink,marginBottom:8}}>
+                What&apos;s Next<span style={{color:C.red}}>.</span>
+              </h2>
+              <p style={{fontSize:16,lineHeight:1.75,color:C.ink,marginBottom:20}}>
                 The On Purpose Assessment is a starting point. If something in your results landed — or if something felt unresolved — there are a few ways to keep going.
               </p>
-              {/* Stacked vertically as requested */}
               <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:14}}>
                 {[
-                  {label:"Cohort",title:"Purpose Cohort",    body:"Work through purpose in a small group with others in a similar season. Built for people ready to go deeper together."},
-                  {label:"Retreat",title:"Purpose Retreat",  body:"A focused experience for people ready to go deep on what's next. Two days. Small group. Real clarity."},
+                  {label:"Cohort",title:"Coaching Cohort",    body:"Work through purpose in a small group with others in a similar season. Built for people ready to go deeper together."},
+                  {label:"Summit",title:"Spring Summit",  body:"A focused experience for people ready to go deep on what's next. Two days. Small group. Real clarity."},
+                  {label:"Go Deeper",title:"On Purpose by Beau Johnson", body:"Most ways of finding purpose don\u2019t work. If you\u2019ve wrestled with wanting to live big without losing contentment, this book is for you. Clarity about our lives is possible. Purpose is within reach in every industry and every stage of life. This book shows you how.", href:"https://www.amazon.com/Purpose-Beau-Johnson/dp/B0FRMXCDWS", btnText:"Get the Book"},
                 ].map(cta=>(
                   <div key={cta.label} style={{background:C.white,border:`1px solid ${C.border}`,
                     borderRadius:12,padding:22}}>
@@ -884,7 +887,17 @@ export default function App() {
                     <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,
                       fontWeight:600,color:C.ink,marginBottom:8}}>{cta.title}</div>
                     <p style={{fontSize:14,lineHeight:1.6,color:C.inkMid,marginBottom:16}}>{cta.body}</p>
-                    <SecondaryBtn>Learn More &rarr;</SecondaryBtn>
+                    {cta.href ? (
+                      <a href={cta.href} target="_blank" rel="noopener noreferrer" style={{
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        width:"100%",height:42,borderRadius:9,
+                        border:`1.5px solid ${C.red}`,background:"transparent",
+                        fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,
+                        color:C.red,cursor:"pointer",textDecoration:"none",transition:"background 0.15s",
+                      }}>{cta.btnText}</a>
+                    ) : (
+                      <SecondaryBtn>Learn More &rarr;</SecondaryBtn>
+                    )}
                   </div>
                 ))}
               </div>
@@ -894,29 +907,6 @@ export default function App() {
                   Send us a message.
                 </a>
               </p>
-            </div>
-
-            <Divider/>
-
-            {/* Go Deeper */}
-            <div style={{animation:"fadeUp 0.5s ease-out 0.9s both"}}>
-              <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.08em",
-                textTransform:"uppercase",color:C.sage,marginBottom:9}}>Go Deeper</div>
-              <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:20,
-                fontWeight:600,color:C.ink,marginBottom:12}}>
-                On Purpose by Beau Johnson
-              </div>
-              <p style={{fontSize:16,lineHeight:1.75,color:C.ink,marginBottom:20}}>
-                Most ways of finding purpose don&apos;t work. If you&apos;ve wrestled with wanting to live big without losing contentment, this book is for you. Clarity about our lives is possible. Purpose is within reach in every industry and every stage of life. This book shows you how.
-              </p>
-              <a href="https://www.amazon.com/Purpose-Beau-Johnson/dp/B0FRMXCDWS" target="_blank" rel="noopener noreferrer"
-                style={{
-                  display:"inline-flex",alignItems:"center",justifyContent:"center",
-                  padding:"12px 28px",borderRadius:10,border:"none",
-                  fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:600,
-                  background:C.red,color:"white",cursor:"pointer",letterSpacing:"0.01em",
-                  textDecoration:"none",
-                }}>Get the Book</a>
             </div>
 
             <Divider/>
