@@ -61,7 +61,7 @@ function getDays(month: string, year: string) {
   );
 }
 
-const genderOptions       = ["Man","Woman","Non-binary","Prefer not to say"];
+const genderOptions       = ["Male","Female","Non-binary","Prefer not to say"];
 const relationshipOptions = ["Single","Married","Partnered","Divorced","Widowed","Prefer not to say"];
 
 // ── QUESTIONS ──────────────────────────────────────────────────
@@ -409,6 +409,12 @@ export default function App() {
     return ()=>clearTimeout(t);
   },[step]); // eslint-disable-line
 
+  // Validation (hoisted above effects that need them)
+  const can1 = form.firstName.trim() && form.lastName.trim() && form.email.includes("@");
+  const can3 = form.dobMonth && form.dobDay && form.dobYear;
+  const can4 = form.lifeEvents.length > 0;
+  const can5 = !!form.selfSeason;
+
   // Auto-advance after answer selection — debounced, locked to prevent double-fire
   const handleAnswer = useCallback((id: string, val: number) => {
     if (advancing) return;
@@ -420,6 +426,36 @@ export default function App() {
       else setStep(7);
     }, 400);
   },[advancing, qIndex, totalQ]);
+
+  // Keyboard support for question screens
+  useEffect(()=>{
+    if (step!==6 || !q) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key>="1" && e.key<="5") { handleAnswer(q.id, Number(e.key)); return; }
+      if (e.key==="Enter" && answers[q.id]) { handleAnswer(q.id, answers[q.id]); return; }
+      if (e.key==="ArrowLeft") { if(qIndex===0) setStep(5); else setQIndex(i=>i-1); return; }
+    };
+    window.addEventListener("keydown", handler);
+    return ()=>window.removeEventListener("keydown", handler);
+  },[step, q, qIndex, handleAnswer, answers]);
+
+  // Enter key support for pre-assessment screens
+  useEffect(()=>{
+    if (step<1 || step>5) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key!=="Enter") return;
+      // Don't trigger if user is in an input/select
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag==="SELECT") return;
+      if (step===1 && can1) setStep(2);
+      else if (step===2) setStep(3);
+      else if (step===3 && can3) setStep(4);
+      else if (step===4 && can4) setStep(5);
+      else if (step===5 && can5) { setQIndex(0); setStep(6); }
+    };
+    window.addEventListener("keydown", handler);
+    return ()=>window.removeEventListener("keydown", handler);
+  },[step, can1, can3, can4, can5]);
 
   const toggleEvent = (ev: string) => {
     if (ev==="None of these"){ setForm(f=>({...f,lifeEvents:["None of these"]})); return; }
@@ -445,12 +481,6 @@ export default function App() {
   const progress =
     step===0?0 : step===1?5 : step===2?9 : step===3?14 : step===4?18 : step===5?22 :
     step===6 ? 22+Math.round((qIndex/totalQ)*70) : step===7?95 : 100;
-
-  // Validation
-  const can1 = form.firstName.trim() && form.lastName.trim() && form.email.includes("@");
-  const can3 = form.dobMonth && form.dobDay && form.dobYear;
-  const can4 = form.lifeEvents.length > 0;
-  const can5 = !!form.selfSeason;
 
   const days = getDays(form.dobMonth, form.dobYear);
 
@@ -499,7 +529,7 @@ export default function App() {
             }}>Get Started</button>
             <p style={{marginTop:24,fontSize:12,color:C.inkLight}}>
               Based on{" "}
-              <a href="https://www.amazon.com" target="_blank" rel="noopener noreferrer"
+              <a href="https://www.amazon.com/Purpose-Beau-Johnson/dp/B0FRMXCDWS" target="_blank" rel="noopener noreferrer"
                 style={{color:C.red,textDecoration:"none"}}>
                 <em>On Purpose</em> by Beau Johnson
               </a>
@@ -703,11 +733,14 @@ export default function App() {
             {/* Question + answers */}
             <div style={{flex:1,padding:"0 22px 32px",
               display:"flex",flexDirection:"column",maxWidth:600,width:"100%",margin:"0 auto"}}>
-              <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
-                fontSize:"clamp(21px,4vw,28px)",fontWeight:600,lineHeight:1.35,
-                color:C.ink,marginBottom:28,flexShrink:0}}>
-                {q.text}
-              </h2>
+              {/* Fixed-height question area so answers stay at the same position */}
+              <div style={{minHeight:140,display:"flex",alignItems:"flex-start"}}>
+                <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
+                  fontSize:"clamp(21px,4vw,28px)",fontWeight:600,lineHeight:1.35,
+                  color:C.ink}}>
+                  {q.text}
+                </h2>
+              </div>
               <div style={{display:"flex",flexDirection:"column",gap:9}}>
                 {likertLabels.map((label,i)=>{
                   const on = answers[q.id]===i+1;
@@ -719,7 +752,6 @@ export default function App() {
                       borderLeft:`${on?3:1.5}px solid ${on?C.red:C.border}`,
                       background:on?C.redLight:C.white,
                       transition:"all 0.12s",userSelect:"none",
-                      // Prevent double-tap zoom on iOS
                       touchAction:"manipulation",
                     }}>
                       <div style={{
@@ -895,6 +927,24 @@ export default function App() {
                 Your full results are on their way to {form.email}.<br/>
                 Check your inbox in the next few minutes.
               </p>
+            </div>
+
+            <Divider/>
+
+            <div style={{textAlign:"center"}}>
+              <button onClick={()=>{
+                setStep(0);
+                setForm({firstName:"",lastName:"",email:"",dobMonth:"",dobDay:"",dobYear:"",gender:"",vocation:"",relationship:"",lifeEvents:[],selfSeason:null});
+                setAnswers({});
+                setQIndex(0);
+                setResult(null);
+              }} style={{
+                display:"inline-flex",alignItems:"center",justifyContent:"center",
+                padding:"10px 24px",border:`1.5px solid ${C.border}`,
+                borderRadius:10,fontFamily:"'DM Sans',sans-serif",
+                fontSize:14,fontWeight:500,color:C.inkMid,
+                cursor:"pointer",background:C.white,transition:"all 0.15s",
+              }}>Start Over</button>
             </div>
 
             <PoweredBy/>
