@@ -465,9 +465,15 @@ export default function App() {
         season_cohort: seasonCohort,
       }),
     })
-      .then(res => res.json())
-      .then(data => { if (data.assessment_id) setAssessmentId(data.assessment_id); })
-      .catch(() => {});
+      .then(res => {
+        console.log("[assessment] Submit response status:", res.status);
+        return res.json();
+      })
+      .then(data => {
+        console.log("[assessment] Submit response data:", data);
+        if (data.assessment_id) setAssessmentId(data.assessment_id);
+      })
+      .catch(err => { console.error("[assessment] Submit fetch error:", err); });
 
     const t = setTimeout(()=>setStep(8),2600);
     return ()=>clearTimeout(t);
