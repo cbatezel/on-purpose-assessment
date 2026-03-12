@@ -28,19 +28,24 @@ function formatDate(iso: string) {
   });
 }
 
-// Max possible scores based on question counts:
-// season: 8 questions × 5 = 40, expertise: 8 non-BS × 5 = 40, passion: 7 non-BS × 5 = 35
-const maxScores = { season: 40, expertise: 40, passion: 35 };
+// Question counts per section (non-BS questions)
+const questionCounts = { season: 8, expertise: 8, passion: 7, bs: 2 };
 
-function ScoreBar({ label, score, max }: { label: string; score: number; max: number }) {
-  const pct = Math.min(100, Math.round((score / max) * 100));
+function toAvg(score: number, count: number): string {
+  if (!count) return "0.0";
+  return (score / count).toFixed(1);
+}
+
+function ScoreBar({ label, score, count }: { label: string; score: number; count: number }) {
+  const avg = count ? score / count : 0;
+  const pct = Math.min(100, (avg / 5) * 100);
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
         <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.06em",
           textTransform: "uppercase", color: C.inkMid }}>{label}</span>
         <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight }}>
-          {score}/{max}
+          {toAvg(score, count)}/5
         </span>
       </div>
       <div style={{ height: 8, borderRadius: 4, background: C.border, overflow: "hidden" }}>
@@ -62,6 +67,17 @@ function SeasonBadge({ season }: { season: string }) {
       fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase",
       color: C.sage, fontWeight: 500,
     }}>{season}</span>
+  );
+}
+
+function ScoreBars({ r }: { r: AssessmentResult }) {
+  return (
+    <>
+      <ScoreBar label="Season" score={r.season_score} count={questionCounts.season} />
+      <ScoreBar label="Expertise" score={r.expertise_score} count={questionCounts.expertise} />
+      <ScoreBar label="Passion" score={r.passion_score} count={questionCounts.passion} />
+      <ScoreBar label="BS Meter" score={r.bs_score} count={questionCounts.bs} />
+    </>
   );
 }
 
@@ -133,16 +149,27 @@ export default function DashboardClient({ name, results }: { name: string; resul
         {/* Latest result */}
         {latest && (
           <>
-            <div style={{
-              background: C.white, border: `1px solid ${C.border}`, borderRadius: 14,
-              padding: "28px 26px", boxShadow: "0 1px 8px rgba(28,27,25,0.05)", marginBottom: 24,
-            }}>
+            <div
+              onClick={() => router.push(`/results/${latest.id}`)}
+              style={{
+                background: C.white, border: `1px solid ${C.border}`, borderRadius: 14,
+                padding: "28px 26px", boxShadow: "0 1px 8px rgba(28,27,25,0.05)", marginBottom: 24,
+                cursor: "pointer", transition: "box-shadow 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 2px 16px rgba(28,27,25,0.1)")}
+              onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 1px 8px rgba(28,27,25,0.05)")}
+            >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.08em",
                   textTransform: "uppercase", color: C.sage }}>Latest Result</div>
-                <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight }}>
-                  {formatDate(latest.created_at)}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight }}>
+                    {formatDate(latest.created_at)}
+                  </span>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M5 3l4 4-4 4" stroke={C.inkLight} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
               </div>
 
               <div style={{ marginBottom: 6 }}>
@@ -166,10 +193,7 @@ export default function DashboardClient({ name, results }: { name: string; resul
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.border}`, margin: "18px 0 20px" }} />
 
-              <ScoreBar label="Season" score={latest.season_score} max={maxScores.season} />
-              <ScoreBar label="Expertise" score={latest.expertise_score} max={maxScores.expertise} />
-              <ScoreBar label="Passion" score={latest.passion_score} max={maxScores.passion} />
-              <ScoreBar label="BS Meter" score={latest.bs_score} max={10} />
+              <ScoreBars r={latest} />
             </div>
 
             <div style={{ marginBottom: 32 }}>
@@ -229,10 +253,13 @@ export default function DashboardClient({ name, results }: { name: string; resul
                     {open && (
                       <div style={{ padding: "0 20px 20px" }}>
                         <hr style={{ border: "none", borderTop: `1px solid ${C.border}`, margin: "0 0 16px" }} />
-                        <ScoreBar label="Season" score={r.season_score} max={maxScores.season} />
-                        <ScoreBar label="Expertise" score={r.expertise_score} max={maxScores.expertise} />
-                        <ScoreBar label="Passion" score={r.passion_score} max={maxScores.passion} />
-                        <ScoreBar label="BS Meter" score={r.bs_score} max={10} />
+                        <ScoreBars r={r} />
+                        <div style={{ marginTop: 8 }}>
+                          <Link href={`/results/${r.id}`} style={{
+                            fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.04em",
+                            color: C.red, textDecoration: "none",
+                          }}>View full results &rarr;</Link>
+                        </div>
                       </div>
                     )}
                   </div>

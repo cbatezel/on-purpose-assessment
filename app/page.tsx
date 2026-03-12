@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, ReactNode, ChangeEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import ResultsDisplay from "@/components/results-display";
 
 // ── TYPES ───────────────────────────────────────────────────────
 type Season = "Identity" | "Exploration" | "Influence" | "Multiplication";
@@ -228,17 +229,6 @@ function PrimaryBtn({children,onClick,disabled}: {children: ReactNode; onClick: 
   );
 }
 
-function SecondaryBtn({children,onClick}: {children: ReactNode; onClick?: () => void}) {
-  return (
-    <button onClick={onClick} style={{
-      display:"flex",alignItems:"center",justifyContent:"center",
-      width:"100%",height:42,borderRadius:9,
-      border:`1.5px solid ${C.red}`,background:"transparent",
-      fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,
-      color:C.red,cursor:"pointer",transition:"background 0.15s",
-    }}>{children}</button>
-  );
-}
 
 function FieldLabel({children}: {children: ReactNode}) {
   return <label style={{display:"block",fontSize:13,fontWeight:600,color:C.ink,marginBottom:7}}>{children}</label>;
@@ -304,9 +294,6 @@ function TextInput({label, value, onChange, placeholder, type="text", autoComple
   );
 }
 
-function Divider() {
-  return <hr style={{border:"none",borderTop:`1px solid ${C.border}`,margin:"28px 0"}}/>;
-}
 
 function PoweredBy() {
   return (
@@ -382,7 +369,6 @@ export default function App() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [qIndex,  setQIndex]  = useState(0);
   const [result,  setResult]  = useState<ResultData | null>(null);
-  const [copied,  setCopied]  = useState(false);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
   // Track whether auto-advance is locked (prevents double-fire)
@@ -554,18 +540,6 @@ export default function App() {
       const flt = f.lifeEvents.filter(e=>e!=="None of these");
       return {...f, lifeEvents: flt.includes(ev) ? flt.filter(e=>e!==ev) : [...flt,ev]};
     });
-  };
-
-  const handleShare = async(platform: string) => {
-    const text = `I just took the On Purpose Assessment and got "${result?.profile?.name}". Find out where you are: `;
-    const url  = window.location.href;
-    if (platform==="copy"){
-      try{await navigator.clipboard.writeText(url);}catch(_){}
-      setCopied(true); setTimeout(()=>setCopied(false),2000); return;
-    }
-    if (platform==="x")     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text+url)}`);
-    if (platform==="li")    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
-    if (platform==="email") window.open(`mailto:?subject=On Purpose Assessment&body=${encodeURIComponent(text+url)}`);
   };
 
   // Progress bar value
@@ -886,177 +860,24 @@ export default function App() {
 
         {/* ── 7: RESULTS ─────────────────────────────────────── */}
         {step===7 && result && (
-          <div style={{maxWidth:620,margin:"0 auto",padding:"64px 24px 72px"}}>
-
-            <div className="fu" style={{fontFamily:"'DM Mono',monospace",fontSize:11,
-              letterSpacing:"0.12em",textTransform:"uppercase",color:C.sage,
-              marginBottom:14,animationDelay:"0.1s"}}>
-              Your Season
-            </div>
-
-            <div className="fu" style={{fontFamily:"'Playfair Display',Georgia,serif",
-              fontSize:"clamp(26px,5.5vw,38px)",fontWeight:700,color:C.sage,
-              lineHeight:1.1,marginBottom:6,animationDelay:"0.15s"}}>
-              {result.behavioral}
-            </div>
-
-            <h1 className="fu" style={{fontFamily:"'Playfair Display',Georgia,serif",
-              fontSize:"clamp(34px,7vw,50px)",fontWeight:700,color:C.ink,
-              marginBottom:12,lineHeight:1.1,animationDelay:"0.2s"}}>
-              {result.profile.name}
-              <span style={{display:"inline-block",width:9,height:9,borderRadius:"50%",
-                background:C.red,marginLeft:4,verticalAlign:"middle",marginBottom:5}}/>
-            </h1>
-
-            <p className="fu" style={{fontFamily:"'Playfair Display',Georgia,serif",
-              fontSize:18,fontStyle:"italic",color:C.inkMid,lineHeight:1.55,
-              marginBottom:10,animationDelay:"0.3s"}}>
-              &ldquo;{result.profile.mirrorLine}&rdquo;
-            </p>
-
-            {result.mismatch && (
-              <div className="fu" style={{background:C.redLight,borderLeft:`3px solid ${C.red}`,
-                borderRadius:"0 9px 9px 0",padding:"13px 17px",marginTop:13,
-                fontSize:14,lineHeight:1.65,color:C.inkMid,animationDelay:"0.35s"}}>
-                {result.mismatch}
-              </div>
-            )}
-
-            <div className="fu" style={{marginTop:16,animationDelay:"0.35s"}}>
-              <p style={{fontSize:16,lineHeight:1.75,color:C.ink}}>{seasonDescriptions[result.behavioral]}</p>
-            </div>
-
-            <Divider/>
-
-            {/* Where the Tension Is */}
-            <div style={{animation:"fadeUp 0.5s ease-out 0.5s both"}}>
-              <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.08em",
-                textTransform:"uppercase",color:C.sage,marginBottom:9}}>Where the Tension Is</div>
-              <p style={{fontSize:16,lineHeight:1.75,color:C.ink}}>{result.profile.description}</p>
-              {result.gap && (
-                <div style={{background:C.sageLight,borderLeft:`3px solid ${C.sage}`,
-                  borderRadius:"0 9px 9px 0",padding:"13px 17px",marginTop:13,
-                  fontSize:14,lineHeight:1.65,color:C.inkMid}}>{result.gap}</div>
-              )}
-            </div>
-
-            <Divider/>
-
-            {/* Question */}
-            <div style={{animation:"fadeUp 0.5s ease-out 0.65s both",
-              textAlign:"center",padding:"32px 22px",background:C.white,
-              borderRadius:14,border:`1px solid ${C.border}`}}>
-              <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.1em",
-                textTransform:"uppercase",color:C.sage,marginBottom:13}}>
-                A question worth sitting with
-              </div>
-              <div style={{fontFamily:"'Playfair Display',Georgia,serif",
-                fontSize:"clamp(18px,3vw,22px)",fontWeight:600,lineHeight:1.4,color:C.ink}}>
-                &ldquo;{result.profile.question}&rdquo;
-              </div>
-            </div>
-
-            <Divider/>
-
-            {/* What's Next */}
-            <div style={{animation:"fadeUp 0.5s ease-out 0.8s both",paddingTop:16}}>
-              <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
-                fontSize:"clamp(24px,5vw,32px)",fontWeight:700,lineHeight:1.2,
-                color:C.ink,marginBottom:8}}>
-                What&apos;s Next<span style={{color:C.red}}>.</span>
-              </h2>
-              <p style={{fontSize:16,lineHeight:1.75,color:C.ink,marginBottom:20}}>
-                The On Purpose Assessment is a starting point. If something in your results landed — or if something felt unresolved — there are a few ways to keep going.
-              </p>
-              <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:14}}>
-                {[
-                  {label:"Cohort",title:"Coaching Cohort",    body:"Work through purpose in a small group with others in a similar season. Built for people ready to go deeper together."},
-                  {label:"Summit",title:"Spring Summit",  body:"A focused experience for people ready to go deep on what's next. Two days. Small group. Real clarity."},
-                  {label:"Go Deeper",title:"On Purpose by Beau Johnson", body:"Most ways of finding purpose don\u2019t work. If you\u2019ve wrestled with wanting to live big without losing contentment, this book is for you. Clarity about our lives is possible. Purpose is within reach in every industry and every stage of life. This book shows you how.", href:"https://www.amazon.com/Purpose-Beau-Johnson/dp/B0FRMXCDWS", btnText:"Get the Book"},
-                ].map(cta=>(
-                  <div key={cta.label} style={{background:C.white,border:`1px solid ${C.border}`,
-                    borderRadius:12,padding:22}}>
-                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
-                      textTransform:"uppercase",color:C.red,marginBottom:6}}>{cta.label}</div>
-                    <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,
-                      fontWeight:600,color:C.ink,marginBottom:8}}>{cta.title}</div>
-                    <p style={{fontSize:14,lineHeight:1.6,color:C.inkMid,marginBottom:16}}>{cta.body}</p>
-                    {cta.href ? (
-                      <a href={cta.href} target="_blank" rel="noopener noreferrer" style={{
-                        display:"flex",alignItems:"center",justifyContent:"center",
-                        width:"100%",height:42,borderRadius:9,
-                        border:`1.5px solid ${C.red}`,background:"transparent",
-                        fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,
-                        color:C.red,cursor:"pointer",textDecoration:"none",transition:"background 0.15s",
-                      }}>{cta.btnText}</a>
-                    ) : (
-                      <SecondaryBtn>Learn More &rarr;</SecondaryBtn>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <p style={{textAlign:"center",fontSize:12,color:C.inkLight}}>
-                Not sure which is right for you?{" "}
-                <a href="mailto:hello@onpurpose.com" style={{color:C.red,textDecoration:"none"}}>
-                  Send us a message.
-                </a>
-              </p>
-            </div>
-
-            <Divider/>
-
-            {/* Share */}
-            <div style={{textAlign:"center",paddingTop:24,animation:"fadeUp 0.5s ease-out 1.05s both"}}>
-              <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:20,
-                fontWeight:600,color:C.ink,marginBottom:7}}>
-                Share your snapshot<span style={{color:C.red}}>.</span>
-              </div>
-              <p style={{fontSize:14,color:C.inkMid,marginBottom:18,lineHeight:1.6}}>
-                Send this to someone who knows you well. See if they agree.
-              </p>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
-                {[
-                  {id:"copy",  label:copied?"✓ Copied":"Copy link"},
-                  {id:"x",    label:"Share on X"},
-                  {id:"li",   label:"Share on LinkedIn"},
-                  {id:"email",label:"Email a friend"},
-                ].map(s=>(
-                  <button key={s.id} onClick={()=>handleShare(s.id)} style={{
-                    display:"inline-flex",alignItems:"center",gap:6,
-                    padding:"9px 15px",border:`1.5px solid ${C.border}`,
-                    borderRadius:100,fontFamily:"'DM Sans',sans-serif",
-                    fontSize:13,fontWeight:500,color:C.ink,
-                    cursor:"pointer",background:C.white,transition:"all 0.15s",
-                  }}>{s.label}</button>
-                ))}
-              </div>
-              <p style={{fontSize:12,color:C.inkLight,marginTop:18,lineHeight:1.55}}>
-                Your full results are on their way to {form.email}.<br/>
-                Check your inbox in the next few minutes.
-              </p>
-            </div>
-
-            <Divider/>
-
-            <div style={{textAlign:"center"}}>
-              <button onClick={()=>{
-                setStep(0);
-                setForm({name:"",email:"",dobMonth:"",dobDay:"",dobYear:"",gender:"",vocation:"",relationship:"",lifeEvents:[],selfSeason:null});
-                setAnswers({});
-                setQIndex(0);
-                setResult(null);
-                setAssessmentId(null);
-              }} style={{
-                display:"inline-flex",alignItems:"center",justifyContent:"center",
-                padding:"10px 24px",border:`1.5px solid ${C.border}`,
-                borderRadius:10,fontFamily:"'DM Sans',sans-serif",
-                fontSize:14,fontWeight:500,color:C.inkMid,
-                cursor:"pointer",background:C.white,transition:"all 0.15s",
-              }}>Start Over</button>
-            </div>
-
-            <PoweredBy/>
-          </div>
+          <ResultsDisplay
+            behavioral={result.behavioral}
+            profile={result.profile}
+            gap={result.gap}
+            mismatch={result.mismatch}
+            email={form.email}
+            showShare={true}
+            showStartOver={true}
+            onStartOver={()=>{
+              setStep(0);
+              setForm({name:"",email:"",dobMonth:"",dobDay:"",dobYear:"",gender:"",vocation:"",relationship:"",lifeEvents:[],selfSeason:null});
+              setAnswers({});
+              setQIndex(0);
+              setResult(null);
+              setAssessmentId(null);
+            }}
+            animated={true}
+          />
         )}
 
       </div>
