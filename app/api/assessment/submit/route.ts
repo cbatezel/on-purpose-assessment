@@ -82,8 +82,6 @@ export async function POST(request: Request) {
     // 2. Insert assessment result
     const insertPayload = {
       user_id: userId,
-      email,
-      name,
       birth_year,
       gender,
       life_events,
