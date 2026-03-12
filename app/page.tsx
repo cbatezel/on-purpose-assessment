@@ -797,9 +797,9 @@ export default function App() {
                       background:on?C.redLight:C.white,
                       transition:"all 0.15s",userSelect:"none",
                     }}>
-                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:500,
-                      color:C.red,flexShrink:0,paddingTop:2}}>{i+1}</span>
                     <span style={{fontSize:15,lineHeight:1.6,color:C.ink}}>{opt.text}</span>
+                    <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",fontSize:12,
+                      color:C.inkLight,flexShrink:0}}>{i+1}</span>
                   </div>
                 );
               })}
