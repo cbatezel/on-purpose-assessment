@@ -366,7 +366,7 @@ function Card({children, style={}}: {children: ReactNode; style?: React.CSSPrope
 
 // ── MAIN APP ───────────────────────────────────────────────────
 export default function App() {
-  // step: 0=landing 1=name/email 2=disclaimer 3=context 4=life events 5=season 6=questions 7=processing 8=results
+  // step: 0=landing 1=name/email 2=context 3=life events 4=season 5=questions 6=processing 7=results
   const [step, setStep]     = useState(0);
   const [form, setForm]     = useState<{
     name: string; email: string;
@@ -416,7 +416,7 @@ export default function App() {
 
   // Compute results when entering processing screen
   useEffect(()=>{
-    if (step!==7) return;
+    if (step!==6) return;
     const behavioral = computeSeasonScore(answers);
     const eStage     = computeStage("expertise",answers);
     const pStage     = computeStage("passion",answers);
@@ -491,15 +491,15 @@ export default function App() {
       })
       .catch(err => { console.error("[assessment] Submit fetch error:", err); });
 
-    const t = setTimeout(()=>setStep(8),2600);
+    const t = setTimeout(()=>setStep(7),2600);
     return ()=>clearTimeout(t);
   },[step]); // eslint-disable-line
 
   // Validation (hoisted above effects that need them)
   const can1 = form.name.trim() && form.email.includes("@");
-  const can3 = form.dobMonth && form.dobDay && form.dobYear;
-  const can4 = form.lifeEvents.length > 0;
-  const can5 = !!form.selfSeason;
+  const can2 = form.dobMonth && form.dobDay && form.dobYear;
+  const can3 = form.lifeEvents.length > 0;
+  const can4 = !!form.selfSeason;
 
   // Auto-advance after answer selection — debounced, locked to prevent double-fire
   const handleAnswer = useCallback((id: string, val: number) => {
@@ -509,39 +509,44 @@ export default function App() {
     setTimeout(()=>{
       setAdvancing(false);
       if (qIndex < totalQ-1) setQIndex(i=>i+1);
-      else setStep(7);
+      else setStep(6);
     }, 400);
   },[advancing, qIndex, totalQ]);
 
   // Keyboard support for question screens
   useEffect(()=>{
-    if (step!==6 || !q) return;
+    if (step!==5 || !q) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key>="1" && e.key<="5") { handleAnswer(q.id, Number(e.key)); return; }
       if (e.key==="Enter" && answers[q.id]) { handleAnswer(q.id, answers[q.id]); return; }
-      if (e.key==="ArrowLeft") { if(qIndex===0) setStep(5); else setQIndex(i=>i-1); return; }
+      if (e.key==="ArrowLeft") { if(qIndex===0) setStep(4); else setQIndex(i=>i-1); return; }
     };
     window.addEventListener("keydown", handler);
     return ()=>window.removeEventListener("keydown", handler);
   },[step, q, qIndex, handleAnswer, answers]);
 
-  // Enter key support for pre-assessment screens
+  // Keyboard support for pre-assessment screens
   useEffect(()=>{
-    if (step<1 || step>5) return;
+    if (step<1 || step>4) return;
     const handler = (e: KeyboardEvent) => {
+      // Number keys 1-4 to select season on self-season screen
+      if (step===4 && e.key>="1" && e.key<="4") {
+        const idx = Number(e.key)-1;
+        if (selfConfirmOptions[idx]) setForm(f=>({...f,selfSeason:selfConfirmOptions[idx].season}));
+        return;
+      }
       if (e.key!=="Enter") return;
       // Don't trigger if user is in an input/select
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag==="SELECT") return;
       if (step===1 && can1) setStep(2);
-      else if (step===2) setStep(3);
+      else if (step===2 && can2) setStep(3);
       else if (step===3 && can3) setStep(4);
-      else if (step===4 && can4) setStep(5);
-      else if (step===5 && can5) { setQIndex(0); setStep(6); }
+      else if (step===4 && can4) { setQIndex(0); setStep(5); }
     };
     window.addEventListener("keydown", handler);
     return ()=>window.removeEventListener("keydown", handler);
-  },[step, can1, can3, can4, can5]);
+  },[step, can1, can2, can3, can4]);
 
   const toggleEvent = (ev: string) => {
     if (ev==="None of these"){ setForm(f=>({...f,lifeEvents:["None of these"]})); return; }
@@ -565,8 +570,8 @@ export default function App() {
 
   // Progress bar value
   const progress =
-    step===0?0 : step===1?5 : step===2?9 : step===3?14 : step===4?18 : step===5?22 :
-    step===6 ? 22+Math.round((qIndex/totalQ)*70) : step===7?95 : 100;
+    step===0?0 : step===1?5 : step===2?14 : step===3?20 : step===4?26 :
+    step===5 ? 26+Math.round((qIndex/totalQ)*66) : step===6?95 : 100;
 
   const days = getDays(form.dobMonth, form.dobYear);
 
@@ -579,7 +584,7 @@ export default function App() {
       <div style={{minHeight:"100vh",background:C.bg}}>
 
         {/* Single progress bar */}
-        {step>0 && step<8 && (
+        {step>0 && step<7 && (
           <div style={{position:"fixed",top:0,left:0,right:0,height:3,background:C.border,zIndex:100}}>
             <div style={{height:"100%",background:C.red,width:`${progress}%`,
               transition:"width 0.5s cubic-bezier(0.4,0,0.2,1)"}}/>
@@ -659,38 +664,19 @@ export default function App() {
                 }
                 setStep(2);
               }} disabled={!can1}>Continue</PrimaryBtn>
+              <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
+                fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
+                Press Enter ↵ to continue
+              </div>
               <PoweredBy/>
             </Screen>
           </>
         )}
 
-        {/* ── 2: DISCLAIMER ──────────────────────────────────── */}
+        {/* ── 2: PERSONAL CONTEXT ────────────────────────────── */}
         {step===2 && (
           <>
-            <TopBar onBack={()=>setStep(1)} label="Before you begin"/>
-            <Screen>
-              <SectionTitle>This is a tool, not a verdict.</SectionTitle>
-              <Card>
-                <p style={{fontSize:15,lineHeight:1.72,color:C.inkMid,marginBottom:16}}>
-                  Purpose is personal, and no set of questions can fully capture where someone is or where they're headed. What this can do is surface patterns — the kind that are easier to see when someone else names them.
-                </p>
-                <p style={{fontSize:15,lineHeight:1.72,color:C.inkMid,marginBottom:16}}>
-                  Answer based on where you are right now, not where you've been or where you're hoping to go. There are no impressive answers here.
-                </p>
-                <p style={{fontSize:15,lineHeight:1.72,color:C.inkMid}}>
-                  The goal isn't to put you in a box. It's to hand you a better mirror.
-                </p>
-              </Card>
-              <PrimaryBtn onClick={()=>setStep(3)}>Got it, let's go</PrimaryBtn>
-              <PoweredBy/>
-            </Screen>
-          </>
-        )}
-
-        {/* ── 3: PERSONAL CONTEXT ────────────────────────────── */}
-        {step===3 && (
-          <>
-            <TopBar onBack={()=>setStep(2)} label="A bit of context"/>
+            <TopBar onBack={()=>setStep(1)} label="A bit of context"/>
             <Screen>
               <SectionTitle>Tell us a little more about where you are.</SectionTitle>
               <BodyText>This helps us personalize your results. It won't change your scores.</BodyText>
@@ -736,16 +722,20 @@ export default function App() {
                   placeholder="What do you do?" autoComplete="organization-title"
                   onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,vocation:e.target.value}))}/>
               </Card>
-              <PrimaryBtn onClick={()=>setStep(4)} disabled={!can3}>Continue</PrimaryBtn>
+              <PrimaryBtn onClick={()=>setStep(3)} disabled={!can2}>Continue</PrimaryBtn>
+              <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
+                fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
+                Press Enter ↵ to continue
+              </div>
               <PoweredBy/>
             </Screen>
           </>
         )}
 
-        {/* ── 4: LIFE EVENTS ─────────────────────────────────── */}
-        {step===4 && (
+        {/* ── 3: LIFE EVENTS ─────────────────────────────────── */}
+        {step===3 && (
           <>
-            <TopBar onBack={()=>setStep(3)} label="A bit of context"/>
+            <TopBar onBack={()=>setStep(2)} label="A bit of context"/>
             <Screen>
               <SectionTitle>Has anything shifted recently?</SectionTitle>
               <BodyText>Check anything that applies to the last six months. This won't change your scores — it helps us understand your context.</BodyText>
@@ -778,20 +768,24 @@ export default function App() {
                   );
                 })}
               </div>
-              <PrimaryBtn onClick={()=>setStep(5)} disabled={!can4}>Continue</PrimaryBtn>
+              <PrimaryBtn onClick={()=>setStep(4)} disabled={!can3}>Continue</PrimaryBtn>
+              <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
+                fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
+                Press Enter ↵ to continue
+              </div>
               <PoweredBy/>
             </Screen>
           </>
         )}
 
-        {/* ── 5: SEASON SELF-CONFIRM ─────────────────────────── */}
-        {step===5 && (
+        {/* ── 4: SEASON SELF-CONFIRM ─────────────────────────── */}
+        {step===4 && (
           <>
-            <TopBar onBack={()=>setStep(4)} label="Section 1 of 3"/>
+            <TopBar onBack={()=>setStep(3)} label="Section 1 of 3"/>
             <Screen>
               <SectionTitle>Which of these sounds most like where you are right now?</SectionTitle>
               <BodyText>Pick the one that fits best — not the one you're aiming for.</BodyText>
-              {selfConfirmOptions.map(opt=>{
+              {selfConfirmOptions.map((opt,i)=>{
                 const on = form.selfSeason===opt.season;
                 return (
                   <div key={opt.id} onClick={()=>setForm(f=>({...f,selfSeason:opt.season}))}
@@ -804,28 +798,32 @@ export default function App() {
                       transition:"all 0.15s",userSelect:"none",
                     }}>
                     <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:500,
-                      color:C.red,flexShrink:0,paddingTop:2}}>{opt.id}</span>
+                      color:C.red,flexShrink:0,paddingTop:2}}>{i+1}</span>
                     <span style={{fontSize:15,lineHeight:1.6,color:C.ink}}>{opt.text}</span>
                   </div>
                 );
               })}
               <div style={{marginTop:18}}>
-                <PrimaryBtn onClick={()=>{setQIndex(0);setStep(6);}} disabled={!can5}>
+                <PrimaryBtn onClick={()=>{setQIndex(0);setStep(5);}} disabled={!can4}>
                   Start the Assessment
                 </PrimaryBtn>
+              </div>
+              <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
+                fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
+                Press 1–4 to select · Enter ↵ to continue
               </div>
               <PoweredBy/>
             </Screen>
           </>
         )}
 
-        {/* ── 6: QUESTIONS ───────────────────────────────────── */}
-        {step===6 && q && (
+        {/* ── 5: QUESTIONS ───────────────────────────────────── */}
+        {step===5 && q && (
           <div className="fu" key={qIndex}
             style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
             {/* Same top-bar style as other screens — just arrow, no label */}
             <div style={{padding:"14px 20px 0",marginBottom:28}}>
-              <BackArrow onClick={()=>{ if(qIndex===0) setStep(5); else setQIndex(i=>i-1); }}/>
+              <BackArrow onClick={()=>{ if(qIndex===0) setStep(4); else setQIndex(i=>i-1); }}/>
             </div>
 
             {/* Question + answers */}
@@ -873,8 +871,8 @@ export default function App() {
           </div>
         )}
 
-        {/* ── 7: PROCESSING ──────────────────────────────────── */}
-        {step===7 && (
+        {/* ── 6: PROCESSING ──────────────────────────────────── */}
+        {step===6 && (
           <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",
             alignItems:"center",justifyContent:"center",textAlign:"center",padding:"48px 24px"}}>
             <div style={{width:42,height:42,borderRadius:"50%",background:C.red,
@@ -886,8 +884,8 @@ export default function App() {
           </div>
         )}
 
-        {/* ── 8: RESULTS ─────────────────────────────────────── */}
-        {step===8 && result && (
+        {/* ── 7: RESULTS ─────────────────────────────────────── */}
+        {step===7 && result && (
           <div style={{maxWidth:620,margin:"0 auto",padding:"64px 24px 72px"}}>
 
             <div className="fu" style={{fontFamily:"'DM Mono',monospace",fontSize:11,
