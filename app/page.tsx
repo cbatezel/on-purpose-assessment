@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, ReactNode, ChangeEvent } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 // ── TYPES ───────────────────────────────────────────────────────
 type Season = "Identity" | "Exploration" | "Influence" | "Multiplication";
@@ -367,12 +368,12 @@ export default function App() {
   // step: 0=landing 1=name/email 2=disclaimer 3=context 4=life events 5=season 6=questions 7=processing 8=results
   const [step, setStep]     = useState(0);
   const [form, setForm]     = useState<{
-    firstName: string; lastName: string; email: string;
+    name: string; email: string;
     dobMonth: string; dobDay: string; dobYear: string;
     gender: string; vocation: string; relationship: string;
     lifeEvents: string[]; selfSeason: string | null;
   }>({
-    firstName:"", lastName:"", email:"",
+    name:"", email:"",
     dobMonth:"", dobDay:"", dobYear:"",
     gender:"", vocation:"", relationship:"",
     lifeEvents:[], selfSeason:null,
@@ -381,6 +382,7 @@ export default function App() {
   const [qIndex,  setQIndex]  = useState(0);
   const [result,  setResult]  = useState<ResultData | null>(null);
   const [copied,  setCopied]  = useState(false);
+  const [assessmentId, setAssessmentId] = useState<string | null>(null);
   // Track whether auto-advance is locked (prevents double-fire)
   const [advancing, setAdvancing] = useState(false);
 
@@ -405,12 +407,73 @@ export default function App() {
     const gap        = getGapLanguage(eStage,pStage,behavioral);
     const mismatch   = getMismatchLanguage(form.selfSeason,behavioral);
     setResult({profile,behavioral: behavioral as Season,eStage,pStage,gap,mismatch});
+
+    // Split answers into sections and compute scores
+    const seasonAnswers: Record<string, number> = {};
+    const expertiseAnswers: Record<string, number> = {};
+    const passionAnswers: Record<string, number> = {};
+    const bsAnswers: Record<string, number> = {};
+
+    questions.season.forEach(q => { if (answers[q.id]) seasonAnswers[q.id] = answers[q.id]; });
+    questions.expertise.forEach(q => {
+      if (!answers[q.id]) return;
+      if (q.bs) bsAnswers[q.id] = answers[q.id];
+      else expertiseAnswers[q.id] = answers[q.id];
+    });
+    questions.passion.forEach(q => {
+      if (!answers[q.id]) return;
+      if (q.bs) bsAnswers[q.id] = answers[q.id];
+      else passionAnswers[q.id] = answers[q.id];
+    });
+
+    const sum = (obj: Record<string, number>) => Object.values(obj).reduce((a, b) => a + b, 0);
+    const birthYear = parseInt(form.dobYear) || null;
+
+    // Derive season_cohort from birth year
+    let seasonCohort: string | null = null;
+    if (birthYear) {
+      const age = new Date().getFullYear() - birthYear;
+      if (age < 25) seasonCohort = "18-24";
+      else if (age < 35) seasonCohort = "25-34";
+      else if (age < 45) seasonCohort = "35-44";
+      else if (age < 55) seasonCohort = "45-54";
+      else if (age < 65) seasonCohort = "55-64";
+      else seasonCohort = "65+";
+    }
+
+    // Fire API call in the background — don't block the UI
+    fetch("/api/assessment/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: form.email,
+        name: form.name,
+        birth_year: birthYear,
+        gender: form.gender || null,
+        life_events: form.lifeEvents,
+        feeling_words: form.selfSeason ? [form.selfSeason] : [],
+        season_answers: seasonAnswers,
+        expertise_answers: expertiseAnswers,
+        passion_answers: passionAnswers,
+        season_score: sum(seasonAnswers),
+        expertise_score: sum(expertiseAnswers),
+        passion_score: sum(passionAnswers),
+        bs_score: sum(bsAnswers),
+        season: behavioral,
+        profile_name: profile.name,
+        season_cohort: seasonCohort,
+      }),
+    })
+      .then(res => res.json())
+      .then(data => { if (data.assessment_id) setAssessmentId(data.assessment_id); })
+      .catch(() => {});
+
     const t = setTimeout(()=>setStep(8),2600);
     return ()=>clearTimeout(t);
   },[step]); // eslint-disable-line
 
   // Validation (hoisted above effects that need them)
-  const can1 = form.firstName.trim() && form.lastName.trim() && form.email.includes("@");
+  const can1 = form.name.trim() && form.email.includes("@");
   const can3 = form.dobMonth && form.dobDay && form.dobYear;
   const can4 = form.lifeEvents.length > 0;
   const can5 = !!form.selfSeason;
@@ -547,20 +610,23 @@ export default function App() {
               <BodyText>Your results will be sent to your inbox.</BodyText>
               <Card>
                 <div style={fieldGap}>
-                  <TextInput label="First name" value={form.firstName} placeholder="First name"
-                    autoComplete="given-name"
-                    onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,firstName:e.target.value}))}/>
-                </div>
-                <div style={fieldGap}>
-                  <TextInput label="Last name" value={form.lastName} placeholder="Last name"
-                    autoComplete="family-name"
-                    onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,lastName:e.target.value}))}/>
+                  <TextInput label="Name" value={form.name} placeholder="Your name"
+                    autoComplete="name"
+                    onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,name:e.target.value}))}/>
                 </div>
                 <TextInput label="Email address" value={form.email} type="email"
                   placeholder="your@email.com" autoComplete="email" inputMode="email"
                   onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,email:e.target.value}))}/>
               </Card>
-              <PrimaryBtn onClick={()=>setStep(2)} disabled={!can1}>Continue</PrimaryBtn>
+              <PrimaryBtn onClick={()=>{
+                // Fire magic link in the background — don't block
+                const supabase = createClient();
+                supabase.auth.signInWithOtp({
+                  email: form.email,
+                  options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+                }).catch(() => {});
+                setStep(2);
+              }} disabled={!can1}>Continue</PrimaryBtn>
               <PoweredBy/>
             </Screen>
           </>
@@ -945,10 +1011,11 @@ export default function App() {
             <div style={{textAlign:"center"}}>
               <button onClick={()=>{
                 setStep(0);
-                setForm({firstName:"",lastName:"",email:"",dobMonth:"",dobDay:"",dobYear:"",gender:"",vocation:"",relationship:"",lifeEvents:[],selfSeason:null});
+                setForm({name:"",email:"",dobMonth:"",dobDay:"",dobYear:"",gender:"",vocation:"",relationship:"",lifeEvents:[],selfSeason:null});
                 setAnswers({});
                 setQIndex(0);
                 setResult(null);
+                setAssessmentId(null);
               }} style={{
                 display:"inline-flex",alignItems:"center",justifyContent:"center",
                 padding:"10px 24px",border:`1.5px solid ${C.border}`,
