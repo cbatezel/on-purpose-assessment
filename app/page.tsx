@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, ReactNode, ChangeEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 
 // ── TYPES ───────────────────────────────────────────────────────
 type Season = "Identity" | "Exploration" | "Influence" | "Multiplication";
@@ -567,7 +568,14 @@ export default function App() {
         {step===0 && (
           <div className="fu" style={{minHeight:"100vh",display:"flex",flexDirection:"column",
             alignItems:"center",justifyContent:"center",
-            textAlign:"center",padding:"48px 28px",maxWidth:480,margin:"0 auto"}}>
+            textAlign:"center",padding:"48px 28px",maxWidth:480,margin:"0 auto",
+            position:"relative"}}>
+            <Link href="/login" style={{
+              position:"absolute",top:20,right:4,
+              fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.06em",
+              color:C.inkLight,textDecoration:"none",padding:"6px 10px",
+              transition:"color 0.15s",
+            }}>Sign In</Link>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.12em",
               textTransform:"uppercase",color:C.sage,marginBottom:20}}>
               The On Purpose Assessment
