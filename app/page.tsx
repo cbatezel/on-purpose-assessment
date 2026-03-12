@@ -384,8 +384,24 @@ export default function App() {
   const [result,  setResult]  = useState<ResultData | null>(null);
   const [copied,  setCopied]  = useState(false);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
+  const [authed, setAuthed] = useState(false);
   // Track whether auto-advance is locked (prevents double-fire)
   const [advancing, setAdvancing] = useState(false);
+
+  // Check for existing auth session on mount
+  useEffect(()=>{
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } })=>{
+      if (!user) return;
+      setAuthed(true);
+      // Pre-fill form fields from session if empty
+      setForm(f=>({
+        ...f,
+        email: f.email || user.email || "",
+        name: f.name || user.user_metadata?.name || "",
+      }));
+    });
+  },[]);
 
   const allQ = [
     ...questions.season.map(q=>({...q,section:"season" as const})),
@@ -576,12 +592,12 @@ export default function App() {
             alignItems:"center",justifyContent:"center",
             textAlign:"center",padding:"48px 28px",maxWidth:480,margin:"0 auto",
             position:"relative"}}>
-            <Link href="/login" style={{
+            <Link href={authed ? "/dashboard" : "/login"} style={{
               position:"absolute",top:20,right:4,
               fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.06em",
               color:C.inkLight,textDecoration:"none",padding:"6px 10px",
               transition:"color 0.15s",
-            }}>Sign In</Link>
+            }}>{authed ? "Dashboard" : "Sign In"}</Link>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.12em",
               textTransform:"uppercase",color:C.sage,marginBottom:20}}>
               The On Purpose Assessment
@@ -633,12 +649,14 @@ export default function App() {
                   onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,email:e.target.value}))}/>
               </Card>
               <PrimaryBtn onClick={()=>{
-                // Fire magic link in the background — don't block
-                const supabase = createClient();
-                supabase.auth.signInWithOtp({
-                  email: form.email,
-                  options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-                }).catch(() => {});
+                if (!authed) {
+                  // Fire magic link in the background — don't block
+                  const supabase = createClient();
+                  supabase.auth.signInWithOtp({
+                    email: form.email,
+                    options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+                  }).catch(() => {});
+                }
                 setStep(2);
               }} disabled={!can1}>Continue</PrimaryBtn>
               <PoweredBy/>
