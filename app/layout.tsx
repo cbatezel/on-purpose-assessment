@@ -12,10 +12,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const url = "https://on-purpose-assessment.vercel.app";
-const title = "On Purpose Assessment";
+const url = "https://onpurposeassessment.com";
+const title = "The On Purpose Assessment";
 const description =
-  "Most people feel behind. This will help you figure out why. A short diagnostic for your clarity and engagement with purpose.";
+  "A quarterly diagnostic for your clarity and engagement with purpose. Discover your season, expertise, and passion — and what might be keeping you from the next one.";
 
 export const metadata: Metadata = {
   title,
@@ -30,12 +30,13 @@ export const metadata: Metadata = {
     locale: "en_US",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title,
     description,
   },
   icons: {
     icon: "/favicon.svg",
+    apple: "/apple-touch-icon.png",
   },
 };
 
