@@ -28,7 +28,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "#F0EDE8",
+          background: "#FAF7F2",
           padding: "60px",
         }}
       >
@@ -45,7 +45,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               width: "28px",
               height: "28px",
               borderRadius: "50%",
-              background: "#B22234",
+              background: "#8B2635",
             }}
           />
           <span
@@ -53,7 +53,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               fontSize: "18px",
               letterSpacing: "0.12em",
               textTransform: "uppercase" as const,
-              color: "#6B7D6A",
+              color: "#4A4742",
               fontFamily: "monospace",
             }}
           >
@@ -64,7 +64,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           style={{
             fontSize: "36px",
             fontWeight: 700,
-            color: "#6B7D6A",
+            color: "#4A4742",
             textAlign: "center",
             lineHeight: 1.2,
             marginBottom: "12px",
@@ -85,7 +85,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           }}
         >
           {profileName}
-          <span style={{ color: "#B22234" }}>.</span>
+          <span style={{ color: "#8B2635" }}>.</span>
         </div>
         <div
           style={{

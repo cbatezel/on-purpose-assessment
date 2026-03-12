@@ -16,73 +16,32 @@ export default function Image() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "#F0EDE8",
+          background: "#FAF7F2",
           padding: "60px",
         }}
       >
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "16px",
+            fontSize: "64px",
+            fontWeight: 700,
+            color: "#1C1B19",
+            textAlign: "center",
+            lineHeight: 1.2,
+            maxWidth: "900px",
             marginBottom: "32px",
-          }}
-        >
-          <div
-            style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "50%",
-              background: "#B22234",
-            }}
-          />
-          <span
-            style={{
-              fontSize: "18px",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase" as const,
-              color: "#6B7D6A",
-              fontFamily: "monospace",
-            }}
-          >
-            The On Purpose Assessment
-          </span>
-        </div>
-        <div
-          style={{
-            fontSize: "56px",
-            fontWeight: 700,
-            color: "#1C1B19",
-            textAlign: "center",
-            lineHeight: 1.2,
-            maxWidth: "800px",
-            marginBottom: "24px",
             fontFamily: "serif",
           }}
         >
-          Most people feel behind.
+          The On Purpose Assessment
+          <span style={{ color: "#8B2635" }}>.</span>
         </div>
         <div
           style={{
-            fontSize: "56px",
-            fontWeight: 700,
-            color: "#1C1B19",
-            textAlign: "center",
-            lineHeight: 1.2,
-            maxWidth: "800px",
-            marginBottom: "36px",
-            fontFamily: "serif",
-          }}
-        >
-          This will help you figure out why
-          <span style={{ color: "#B22234" }}>.</span>
-        </div>
-        <div
-          style={{
-            fontSize: "22px",
+            fontSize: "24px",
             color: "#4A4742",
             textAlign: "center",
             lineHeight: 1.6,
+            maxWidth: "700px",
           }}
         >
           A quarterly diagnostic for your clarity and engagement with purpose.
