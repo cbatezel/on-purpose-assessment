@@ -439,7 +439,7 @@ export default function ResultsDisplay({
           <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
             fontSize:"clamp(22px,4vw,28px)",fontWeight:600,color:C.ink,
             lineHeight:1.2,marginBottom:8}}>
-            You&apos;re part of the first wave<span style={{color:C.red}}>.</span>
+            We want your feedback<span style={{color:C.red}}>.</span>
           </h2>
           <p style={{fontSize:14,lineHeight:1.6,color:C.inkLight,marginBottom:28}}>
             This assessment is new, and your perspective matters. We&apos;d love to hear what you think.
@@ -537,77 +537,78 @@ export default function ResultsDisplay({
       )}
 
       {fbSubmitted && (
-        <div style={{...rs(6), marginTop:40, textAlign:"center", padding:"24px 0"}}>
-          <p style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,
-            fontStyle:"italic",color:C.inkMid,lineHeight:1.5}}>
-            Thank you — this helps more than you know.
-          </p>
+        <div style={{...rs(6), marginTop:40, display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"16px 0"}}>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="8" stroke={seasonAccent[behavioral]||C.sage} strokeWidth="1.5" fill="none"/>
+            <path d="M5.5 9l2.5 2.5 4.5-5" stroke={seasonAccent[behavioral]||C.sage} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,color:C.inkMid}}>
+            Thanks for your feedback.
+          </span>
         </div>
       )}
 
-      {/* What's Next + CTAs + Share — all fade in last */}
-      <div style={rs(6)}>
-
-        {/* ── Share Section (prominent, before CTAs) ── */}
-        {showShare && (
-          <>
-            <div style={{textAlign:"center",paddingBottom:8}}>
-              <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:22,
-                fontWeight:600,color:C.ink,marginBottom:7}}>
-                Share your results<span style={{color:C.red}}>.</span>
-              </div>
-              <p style={{fontSize:14,color:C.inkMid,marginBottom:18,lineHeight:1.6}}>
-                Send this to someone who knows you well. See if they agree.
-              </p>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:8}}>
-                <SharePill onClick={()=>handleShare("native")}>
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 2v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-                    <path d="M6 6l4-4 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M4 10v6a2 2 0 002 2h8a2 2 0 002-2v-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Share
-                </SharePill>
-                <SharePill onClick={()=>handleShare("copy")}>{copied?"Copied":"Copy link"}</SharePill>
-                <SharePill onClick={()=>handleShare("x")}>Share on X</SharePill>
-                <SharePill onClick={()=>handleShare("li")}>LinkedIn</SharePill>
-                <SharePill onClick={()=>handleShare("email")}>Email</SharePill>
-              </div>
+      {/* ── Share Section ── */}
+      {showShare && (
+        <div style={{...rs(6), marginTop:48}}>
+          <div style={{textAlign:"center",paddingBottom:8}}>
+            <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:22,
+              fontWeight:600,color:C.ink,marginBottom:7}}>
+              Share your results<span style={{color:C.red}}>.</span>
             </div>
-
-            {/* Shareable results card */}
-            <div style={{paddingTop:8,marginBottom:8}}>
-              <div ref={previewContainerRef} style={{marginBottom:12}} />
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
-                <CardBtn onClick={()=>handleDownload(1200,630,"on-purpose-results.png")}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M7 1v9M3 7l4 4 4-4M2 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Download Card
-                </CardBtn>
-                <CardBtn onClick={()=>handleDownload(1080,1920,"on-purpose-story.png")}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <rect x="3" y="1" width="8" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
-                    <line x1="5.5" y1="11" x2="8.5" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                  </svg>
-                  Story Size
-                </CardBtn>
-                <CardBtn onClick={handleCopyImage}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
-                    <path d="M10 4V3a1.5 1.5 0 00-1.5-1.5H3A1.5 1.5 0 001.5 3v5.5A1.5 1.5 0 003 10h1" stroke="currentColor" strokeWidth="1.3"/>
-                  </svg>
-                  {copiedImg ? "Copied" : "Copy Image"}
-                </CardBtn>
-              </div>
+            <p style={{fontSize:14,color:C.inkMid,marginBottom:18,lineHeight:1.6}}>
+              Send this to someone who knows you well. See if they agree.
+            </p>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:8}}>
+              <SharePill onClick={()=>handleShare("native")}>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+                  <path d="M10 2v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                  <path d="M6 6l4-4 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M4 10v6a2 2 0 002 2h8a2 2 0 002-2v-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Share
+              </SharePill>
+              <SharePill onClick={()=>handleShare("copy")}>{copied?"Copied":"Copy link"}</SharePill>
+              <SharePill onClick={()=>handleShare("x")}>Share on X</SharePill>
+              <SharePill onClick={()=>handleShare("li")}>LinkedIn</SharePill>
+              <SharePill onClick={()=>handleShare("email")}>Email</SharePill>
             </div>
+          </div>
 
-            <Divider/>
-          </>
-        )}
+          {/* Shareable results card */}
+          <div style={{paddingTop:8,marginBottom:8}}>
+            <div ref={previewContainerRef} style={{marginBottom:12}} />
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
+              <CardBtn onClick={()=>handleDownload(1200,630,"on-purpose-results.png")}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M7 1v9M3 7l4 4 4-4M2 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Download Card
+              </CardBtn>
+              <CardBtn onClick={()=>handleDownload(1080,1920,"on-purpose-story.png")}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <rect x="3" y="1" width="8" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+                  <line x1="5.5" y1="11" x2="8.5" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                </svg>
+                Story Size
+              </CardBtn>
+              <CardBtn onClick={handleCopyImage}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+                  <path d="M10 4V3a1.5 1.5 0 00-1.5-1.5H3A1.5 1.5 0 001.5 3v5.5A1.5 1.5 0 003 10h1" stroke="currentColor" strokeWidth="1.3"/>
+                </svg>
+                {copiedImg ? "Copied" : "Copy Image"}
+              </CardBtn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* What's Next + CTAs — fade in last */}
+      <div style={{...rs(6), marginTop:48}}>
 
         {/* What's Next */}
-        {showCTAs && <div style={{paddingTop:16}}>
+        {showCTAs && <div>
           <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
             fontSize:"clamp(24px,5vw,32px)",fontWeight:700,lineHeight:1.2,
             color:C.ink,marginBottom:8}}>
@@ -860,7 +861,7 @@ export default function ResultsDisplay({
           </>
         )}
 
-        <div style={{textAlign:"center",padding:"30px 0 4px",fontSize:11,
+        <div style={{textAlign:"center",padding:"48px 0 4px",fontSize:11,
           fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em",
           textTransform:"uppercase"}}>
           <a href="https://thirdspacepublishing.com" target="_blank" rel="noopener noreferrer"
