@@ -497,7 +497,7 @@ function AppInner() {
   const isRetake = searchParams.get("retake") === "true";
   const autoSkipDone = useRef(false);
 
-  // step: 0=landing 1=name/email 2=context 3=life events 4=self-season 5=season confirmation 6=questions(expertise+passion) 7=processing 8=results
+  // step: 0=landing 1=email 2=name 3=context 4=life events 5=self-season 6=season confirmation 7=questions(expertise+passion) 8=processing 9=results
   const [step, setStep]     = useState(0);
   const [form, setForm]     = useState<{
     name: string; email: string;
@@ -516,12 +516,16 @@ function AppInner() {
   const [result,  setResult]  = useState<ResultData | null>(null);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
-  // Whether demographics were loaded from a previous assessment (skip step 2)
+  // Whether demographics were loaded from a previous assessment (skip demographics step)
   const [hasProfile, setHasProfile] = useState(false);
   // Track whether auto-advance is locked (prevents double-fire)
   const [advancing, setAdvancing] = useState(false);
   // Track if saving to server failed after retries
   const [saveFailed, setSaveFailed] = useState(false);
+  // Email lookup loading state
+  const [lookingUp, setLookingUp] = useState(false);
+  // Welcome back name for returning users (shown briefly)
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
 
   // Detect touch/mobile device (no hover capability)
   const [isMobile, setIsMobile] = useState(false);
@@ -569,7 +573,7 @@ function AppInner() {
       // Auto-skip landing for authed users (retake=true still shows landing)
       if (!autoSkipDone.current && !isRetake) {
         autoSkipDone.current = true;
-        setStep(profileFound ? 3 : 2);
+        setStep(profileFound ? 4 : 3);
       }
     });
   },[]); // eslint-disable-line
@@ -592,9 +596,9 @@ function AppInner() {
   // Scroll to top on step/question change
   useEffect(()=>{ window.scrollTo({top:0,behavior:"smooth"}); },[step,qIndex,scIndex]);
 
-  // Compute results when entering processing screen (step 7)
+  // Compute results when entering processing screen (step 8)
   useEffect(()=>{
-    if (step!==7) return;
+    if (step!==8) return;
 
     // Compute season from new logic
     const selfSelectSeason = (form.selfSeason || "Exploration") as Season;
@@ -725,7 +729,7 @@ function AppInner() {
       setSaveFailed(true);
     })();
 
-    const t = setTimeout(()=>setStep(8),2600);
+    const t = setTimeout(()=>setStep(9),2600);
     return ()=>clearTimeout(t);
   },[step]); // eslint-disable-line
 
@@ -734,13 +738,15 @@ function AppInner() {
   const nameValid = form.name.trim().length >= 2;
   const birthYearNum = parseInt(form.dobYear);
   const birthYearValid = !!(form.dobYear && birthYearNum >= 1920 && birthYearNum <= new Date().getFullYear() - 10);
-  const can1 = nameValid && emailValid;
-  const can2 = form.dobMonth && form.dobDay && birthYearValid;
-  const can3 = form.lifeEvents.length > 0;
-  const can4 = !!form.selfSeason;
+  const canEmail = emailValid;
+  const canName = nameValid;
+  const can3 = form.dobMonth && form.dobDay && birthYearValid;
+  const can4 = form.lifeEvents.length > 0;
+  const can5 = !!form.selfSeason;
   // Track whether user has attempted to submit each step (for showing inline errors)
-  const [tried1, setTried1] = useState(false);
-  const [tried2, setTried2] = useState(false);
+  const [triedEmail, setTriedEmail] = useState(false);
+  const [triedName, setTriedName] = useState(false);
+  const [tried3, setTried3] = useState(false);
 
   // Auto-advance after answer selection — debounced, locked to prevent double-fire
   const handleAnswer = useCallback((id: string, val: number) => {
@@ -749,31 +755,31 @@ function AppInner() {
     setAnswers(prev=>({...prev,[id]:val}));
     setTimeout(()=>{
       setAdvancing(false);
-      if (step === 5) {
+      if (step === 6) {
         // Season confirmation questions
         if (scIndex < scQuestions.length - 1) setScIndex(i=>i+1);
-        else { setQIndex(0); setStep(6); }
+        else { setQIndex(0); setStep(7); }
       } else {
         // Expertise + passion questions
         if (qIndex < totalQ-1) setQIndex(i=>i+1);
-        else setStep(7);
+        else setStep(8);
       }
     }, 400);
   },[advancing, qIndex, totalQ, step, scIndex, scQuestions.length]);
 
-  // Keyboard support for question screens (steps 5 and 6)
+  // Keyboard support for question screens (steps 6 and 7)
   useEffect(()=>{
-    if (step !== 5 && step !== 6) return;
+    if (step !== 6 && step !== 7) return;
     const handler = (e: KeyboardEvent) => {
-      if (step === 5) {
+      if (step === 6) {
         const scQ = scQuestions[scIndex];
         if (!scQ) return;
         if (e.key>="1" && e.key<="5") { handleAnswer(scQ.id, Number(e.key)); return; }
-        if (e.key==="ArrowLeft") { if(scIndex===0) setStep(4); else setScIndex(i=>i-1); return; }
-      } else if (step === 6 && q) {
+        if (e.key==="ArrowLeft") { if(scIndex===0) setStep(5); else setScIndex(i=>i-1); return; }
+      } else if (step === 7 && q) {
         if (e.key>="1" && e.key<="5") { handleAnswer(q.id, Number(e.key)); return; }
         if (e.key==="Enter" && answers[q.id]) { handleAnswer(q.id, answers[q.id]); return; }
-        if (e.key==="ArrowLeft") { if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(5); } else setQIndex(i=>i-1); return; }
+        if (e.key==="ArrowLeft") { if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(6); } else setQIndex(i=>i-1); return; }
       }
     };
     window.addEventListener("keydown", handler);
@@ -782,10 +788,10 @@ function AppInner() {
 
   // Keyboard support for pre-assessment screens
   useEffect(()=>{
-    if (step<1 || step>4) return;
+    if (step<1 || step>5) return;
     const handler = (e: KeyboardEvent) => {
       // Number keys 1-4 to select season on self-season screen
-      if (step===4 && e.key>="1" && e.key<="4") {
+      if (step===5 && e.key>="1" && e.key<="4") {
         const idx = Number(e.key)-1;
         if (selfConfirmOptions[idx]) setForm(f=>({...f,selfSeason:selfConfirmOptions[idx].season}));
         return;
@@ -794,20 +800,20 @@ function AppInner() {
       // Don't trigger if user is in an input/select
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag==="SELECT") return;
-      if (step===1) {
-        setTried1(true);
-        if (can1) setStep(authed && hasProfile ? 3 : 2);
+      if (step===2) {
+        setTriedName(true);
+        if (canName) setStep(3);
       }
-      else if (step===2) {
-        setTried2(true);
-        if (can2) setStep(3);
+      else if (step===3) {
+        setTried3(true);
+        if (can3) setStep(4);
       }
-      else if (step===3 && can3) setStep(4);
-      else if (step===4 && can4) { setScIndex(0); setStep(5); }
+      else if (step===4 && can4) setStep(5);
+      else if (step===5 && can5) { setScIndex(0); setStep(6); }
     };
     window.addEventListener("keydown", handler);
     return ()=>window.removeEventListener("keydown", handler);
-  },[step, can1, can2, can3, can4, authed, hasProfile]);
+  },[step, canName, can3, can4, can5, hasProfile]);
 
   const toggleEvent = (ev: string) => {
     if (ev==="None of these"){ setForm(f=>({...f,lifeEvents:["None of these"]})); return; }
@@ -823,21 +829,22 @@ function AppInner() {
   // Progress bar value — adjust pre-question percentage for returning users
   const skipsEmailStep = authed;
   const skipsDemoStep = authed && hasProfile;
-  // Pre-question steps: landing(0), email(1), demo(2), life(3), self-season(4)
-  // Returning users skip 1 and/or 2, so compress the pre-question range (0-26%)
+  // Pre-question steps: landing(0), email(1), name(2), demo(3), life(4), self-season(5)
+  // Returning users skip some steps, so compress the pre-question range (0-26%)
   const preQuestionPct = (() => {
     if (step === 0) return 0;
     if (step === 1) return 5;
-    if (step === 2) return 14;
-    if (step === 3) return skipsDemoStep ? (skipsEmailStep ? 8 : 14) : 20;
-    if (step === 4) return 26;
+    if (step === 2) return 10;
+    if (step === 3) return skipsDemoStep ? (skipsEmailStep ? 8 : 14) : 16;
+    if (step === 4) return skipsDemoStep ? (skipsEmailStep ? 12 : 18) : 22;
+    if (step === 5) return 26;
     return 26;
   })();
   const progress =
-    step <= 4 ? preQuestionPct :
-    step===5 ? 26+Math.round((scIndex/totalDisplayedQ)*66) :
-    step===6 ? 26+Math.round(((scQuestions.length+qIndex)/totalDisplayedQ)*66) :
-    step===7?95 : 100;
+    step <= 5 ? preQuestionPct :
+    step===6 ? 26+Math.round((scIndex/totalDisplayedQ)*66) :
+    step===7 ? 26+Math.round(((scQuestions.length+qIndex)/totalDisplayedQ)*66) :
+    step===8?95 : 100;
 
   const days = getDays(form.dobMonth, form.dobYear);
 
@@ -846,8 +853,8 @@ function AppInner() {
 
   // Current section label for question screens
   const getSectionLabel = () => {
-    if (step === 5) return "Section 1 of 3";
-    if (step === 6 && q) {
+    if (step === 6) return "Section 1 of 3";
+    if (step === 7 && q) {
       return q.section === "expertise" ? "Section 2 of 3" : "Section 3 of 3";
     }
     return "";
@@ -855,8 +862,8 @@ function AppInner() {
 
   // Current question number across all sections
   const getCurrentQNumber = () => {
-    if (step === 5) return scIndex + 1;
-    if (step === 6) return scQuestions.length + qIndex + 1;
+    if (step === 6) return scIndex + 1;
+    if (step === 7) return scQuestions.length + qIndex + 1;
     return 0;
   };
 
@@ -866,7 +873,7 @@ function AppInner() {
       <div style={{minHeight:"100vh",background:C.bg}}>
 
         {/* Single progress bar */}
-        {step>0 && step<8 && (
+        {step>0 && step<9 && (
           <div style={{position:"fixed",top:0,left:0,right:0,height:3,background:C.border,zIndex:100}}>
             <div style={{height:"100%",background:C.red,width:`${progress}%`,
               transition:"width 0.5s cubic-bezier(0.4,0,0.2,1)"}}/>
@@ -921,8 +928,8 @@ function AppInner() {
               A short diagnostic for your clarity and engagement with purpose.
             </p>
             <button onClick={()=>{
-              if (authed && hasProfile) { setStep(3); }
-              else if (authed) { setStep(2); }
+              if (authed && hasProfile) { setStep(4); }
+              else if (authed) { setStep(3); }
               else { setStep(1); }
             }} style={{
               display:"flex",alignItems:"center",justifyContent:"center",
@@ -947,57 +954,105 @@ function AppInner() {
           </div>
         )}
 
-        {/* ── 1: NAME + EMAIL ────────────────────────────────── */}
-        {step===1 && (
+        {/* ── 1: EMAIL ─────────────────────────────────────── */}
+        {step===1 && !welcomeName && (
           <>
             <TopBar onBack={()=>setStep(0)} label="Let's get started"/>
             <Screen>
-              <SectionTitle>First, a little about you.</SectionTitle>
+              <SectionTitle>What&apos;s your email?</SectionTitle>
+              <BodyText style={{marginBottom:16}}>We use this to save your results.</BodyText>
               <Card>
-                <div style={fieldGap}>
-                  <TextInput label="Name" value={form.name} placeholder="Your name"
-                    autoComplete="name"
-                    onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,name:e.target.value}))}/>
-                  {tried1 && !nameValid && (
-                    <p style={{fontSize:12,color:C.red,marginTop:5}}>Please enter your name.</p>
-                  )}
-                </div>
                 <TextInput label="Email address" value={form.email} type="email"
                   placeholder="your@email.com" autoComplete="email" inputMode="email"
                   onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,email:e.target.value}))}/>
-                {tried1 && form.email.trim() && !emailValid && (
+                {triedEmail && form.email.trim() && !emailValid && (
                   <p style={{fontSize:12,color:C.red,marginTop:5}}>Please enter a valid email address.</p>
                 )}
               </Card>
-              <PrimaryBtn onClick={()=>{
-                setTried1(true);
-                if (!can1) return;
-                // Trim whitespace
-                setForm(f=>({...f, name: f.name.trim(), email: f.email.trim()}));
-                if (!authed) {
-                  // Fire magic link in the background — don't block
-                  const supabase = createClient();
-                  supabase.auth.signInWithOtp({
-                    email: form.email.trim(),
-                    options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-                  }).catch(() => {});
-                  // For new users, also check if they have a profile from a previous assessment
-                  fetch(`/api/assessment/profile?email=${encodeURIComponent(form.email.trim())}`)
-                    .then(r => r.ok ? r.json() : null)
-                    .then(data => {
-                      if (data?.profile?.birth_year) {
-                        setForm(f => ({
-                          ...f,
-                          dobYear: f.dobYear || String(data.profile.birth_year),
-                          gender: f.gender || data.profile.gender || "",
-                        }));
-                        setHasProfile(true);
+              <PrimaryBtn onClick={async ()=>{
+                setTriedEmail(true);
+                if (!canEmail || lookingUp) return;
+                const trimmedEmail = form.email.trim();
+                setForm(f=>({...f, email: trimmedEmail}));
+                setLookingUp(true);
+                try {
+                  const res = await fetch("/api/user-lookup", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: trimmedEmail }),
+                  });
+                  const data = await res.json();
+                  if (data.found) {
+                    // Returning user — pre-fill data
+                    if (data.name) setForm(f=>({...f, name: f.name || data.name}));
+                    if (data.birth_year) setForm(f=>({...f, dobYear: f.dobYear || String(data.birth_year)}));
+                    if (data.gender) setForm(f=>({...f, gender: f.gender || data.gender}));
+                    if (data.hasFullDemographics) {
+                      setHasProfile(true);
+                      // Show welcome back moment, then skip to life events
+                      if (data.name) {
+                        setWelcomeName(data.name);
+                        setTimeout(()=>{
+                          setWelcomeName(null);
+                          setStep(4); // life events
+                        }, 1200);
+                      } else {
+                        // Has demographics but no name — go to name step
+                        setStep(2);
                       }
-                    })
-                    .catch(() => {});
+                    } else {
+                      // Returning but missing demographics — go to name step (pre-filled)
+                      setStep(data.name ? 3 : 2);
+                    }
+                  } else {
+                    // New user — go to name step
+                    setStep(2);
+                  }
+                } catch {
+                  // On error, just proceed to name step
+                  setStep(2);
                 }
-                // Skip demographics if we already have profile data
-                setStep(hasProfile ? 3 : 2);
+                setLookingUp(false);
+              }} disabled={lookingUp}>{lookingUp ? "Checking…" : "Continue"}</PrimaryBtn>
+              {!isMobile && !lookingUp && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
+                fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
+                Press Enter ↵ to continue
+              </div>}
+              <PoweredBy/>
+            </Screen>
+          </>
+        )}
+
+        {/* ── 1 (welcome back moment) ────────────────────────── */}
+        {step===1 && welcomeName && (
+          <div className="fu" style={{minHeight:"100vh",display:"flex",flexDirection:"column",
+            alignItems:"center",justifyContent:"center",textAlign:"center",padding:"48px 28px"}}>
+            <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
+              fontSize:"clamp(26px,5vw,36px)",fontWeight:600,lineHeight:1.3,color:C.ink}}>
+              Welcome back, {welcomeName}<span style={{color:C.red}}>.</span>
+            </h2>
+          </div>
+        )}
+
+        {/* ── 2: NAME ────────────────────────────────────────── */}
+        {step===2 && (
+          <>
+            <TopBar onBack={()=>{setStep(1);setWelcomeName(null);}} label="Let's get started"/>
+            <Screen>
+              <SectionTitle>What&apos;s your name?</SectionTitle>
+              <Card>
+                <TextInput label="Name" value={form.name} placeholder="Your name"
+                  autoComplete="name"
+                  onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,name:e.target.value}))}/>
+                {triedName && !nameValid && (
+                  <p style={{fontSize:12,color:C.red,marginTop:5}}>Please enter your name.</p>
+                )}
+              </Card>
+              <PrimaryBtn onClick={()=>{
+                setTriedName(true);
+                if (!canName) return;
+                setForm(f=>({...f, name: f.name.trim()}));
+                setStep(hasProfile ? 4 : 3);
               }} disabled={false}>Continue</PrimaryBtn>
               {!isMobile && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
@@ -1008,10 +1063,10 @@ function AppInner() {
           </>
         )}
 
-        {/* ── 2: PERSONAL CONTEXT ────────────────────────────── */}
-        {step===2 && (
+        {/* ── 3: PERSONAL CONTEXT ────────────────────────────── */}
+        {step===3 && (
           <>
-            <TopBar onBack={()=>setStep(skipsEmailStep ? 0 : 1)} label="A bit of context"/>
+            <TopBar onBack={()=>setStep(skipsEmailStep ? 0 : 2)} label="A bit of context"/>
             <Screen>
               <SectionTitle>Tell us a little more about where you are.</SectionTitle>
               <Card>
@@ -1059,14 +1114,14 @@ function AppInner() {
                   placeholder="What do you do?" autoComplete="organization-title"
                   onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,vocation:e.target.value}))}/>
               </Card>
-              {tried2 && form.dobYear && !birthYearValid && (
+              {tried3 && form.dobYear && !birthYearValid && (
                 <p style={{fontSize:12,color:C.red,marginTop:-8,marginBottom:8}}>Please enter a valid birth year.</p>
               )}
               <PrimaryBtn onClick={()=>{
-                setTried2(true);
-                if (!can2) return;
+                setTried3(true);
+                if (!can3) return;
                 setForm(f=>({...f, vocation: f.vocation.trim()}));
-                setStep(3);
+                setStep(4);
               }} disabled={false}>Continue</PrimaryBtn>
               {!isMobile && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
@@ -1077,10 +1132,10 @@ function AppInner() {
           </>
         )}
 
-        {/* ── 3: LIFE EVENTS ─────────────────────────────────── */}
-        {step===3 && (
+        {/* ── 4: LIFE EVENTS ─────────────────────────────────── */}
+        {step===4 && (
           <>
-            <TopBar onBack={()=>setStep(skipsDemoStep ? 0 : (skipsEmailStep ? 2 : 2))} label="A bit of context"/>
+            <TopBar onBack={()=>setStep(skipsDemoStep ? 0 : 3)} label="A bit of context"/>
             <Screen>
               <SectionTitle>Has anything shifted recently?</SectionTitle>
               <BodyText>Have any of these significantly impacted where you are right now? This won&apos;t change your scores — it helps us understand your context.</BodyText>
@@ -1113,7 +1168,7 @@ function AppInner() {
                   );
                 })}
               </div>
-              <PrimaryBtn onClick={()=>setStep(4)} disabled={!can3}>Continue</PrimaryBtn>
+              <PrimaryBtn onClick={()=>setStep(5)} disabled={!can4}>Continue</PrimaryBtn>
               {!isMobile && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
                 Press Enter ↵ to continue
@@ -1123,10 +1178,10 @@ function AppInner() {
           </>
         )}
 
-        {/* ── 4: SEASON SELF-CONFIRM ─────────────────────────── */}
-        {step===4 && (
+        {/* ── 5: SEASON SELF-CONFIRM ─────────────────────────── */}
+        {step===5 && (
           <>
-            <TopBar onBack={()=>setStep(3)} label="Section 1 of 3"/>
+            <TopBar onBack={()=>setStep(4)} label="Section 1 of 3"/>
             <Screen>
               <SectionTitle>Which of these sounds most like where you are right now?</SectionTitle>
               <BodyText>Pick the one that fits best — not the one you&apos;re aiming for.</BodyText>
@@ -1149,7 +1204,7 @@ function AppInner() {
                 );
               })}
               <div style={{marginTop:18}}>
-                <PrimaryBtn onClick={()=>{setScIndex(0);setStep(5);}} disabled={!can4}>
+                <PrimaryBtn onClick={()=>{setScIndex(0);setStep(6);}} disabled={!can5}>
                   Start the Assessment
                 </PrimaryBtn>
               </div>
@@ -1162,15 +1217,15 @@ function AppInner() {
           </>
         )}
 
-        {/* ── 5: SEASON CONFIRMATION QUESTIONS ─────────────────── */}
-        {step===5 && scQuestions[scIndex] && (
+        {/* ── 6: SEASON CONFIRMATION QUESTIONS ─────────────────── */}
+        {step===6 && scQuestions[scIndex] && (
           <div className="fu" key={`sc-${scIndex}`}
             style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
             <div style={{
               display:"flex",alignItems:"center",justifyContent:"space-between",
               padding:"14px 20px 0",marginBottom:28,
             }}>
-              <BackArrow onClick={()=>{ if(scIndex===0) setStep(4); else setScIndex(i=>i-1); }}/>
+              <BackArrow onClick={()=>{ if(scIndex===0) setStep(5); else setScIndex(i=>i-1); }}/>
               <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,
                 letterSpacing:"0.1em",textTransform:"uppercase",color:C.sage}}>
                 {getCurrentQNumber()} of {totalDisplayedQ}
@@ -1221,15 +1276,15 @@ function AppInner() {
           </div>
         )}
 
-        {/* ── 6: EXPERTISE + PASSION QUESTIONS ─────────────────── */}
-        {step===6 && q && (
+        {/* ── 7: EXPERTISE + PASSION QUESTIONS ─────────────────── */}
+        {step===7 && q && (
           <div className="fu" key={`q-${qIndex}`}
             style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
             <div style={{
               display:"flex",alignItems:"center",justifyContent:"space-between",
               padding:"14px 20px 0",marginBottom:28,
             }}>
-              <BackArrow onClick={()=>{ if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(5); } else setQIndex(i=>i-1); }}/>
+              <BackArrow onClick={()=>{ if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(6); } else setQIndex(i=>i-1); }}/>
               <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,
                 letterSpacing:"0.1em",textTransform:"uppercase",color:C.sage}}>
                 {getCurrentQNumber()} of {totalDisplayedQ}
@@ -1280,8 +1335,8 @@ function AppInner() {
           </div>
         )}
 
-        {/* ── 7: PROCESSING ──────────────────────────────────── */}
-        {step===7 && (
+        {/* ── 8: PROCESSING ──────────────────────────────────── */}
+        {step===8 && (
           <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",
             alignItems:"center",justifyContent:"center",textAlign:"center",padding:"48px 24px"}}>
             <div style={{width:42,height:42,borderRadius:"50%",background:C.red,
@@ -1293,8 +1348,8 @@ function AppInner() {
           </div>
         )}
 
-        {/* ── 8: RESULTS ─────────────────────────────────────── */}
-        {step===8 && result && (
+        {/* ── 9: RESULTS ─────────────────────────────────────── */}
+        {step===9 && result && (
           <ResultsDisplay
             behavioral={result.behavioral}
             profile={result.profile}
@@ -1311,6 +1366,8 @@ function AppInner() {
               setResult(null);
               setAssessmentId(null);
               setSaveFailed(false);
+              setWelcomeName(null);
+              setLookingUp(false);
             }}
             animated={true}
             isAuthenticated={authed}

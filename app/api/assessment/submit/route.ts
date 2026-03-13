@@ -138,7 +138,14 @@ export async function POST(request: Request) {
       console.log("[assessment/submit] Created pdf_job for assessment:", assessmentResult.id);
     }
 
-    // 4. Slack notification (fire and forget)
+    // 4. Send magic link (fire and forget) — so user gets it after completing assessment
+    const origin = request.headers.get("origin") || "https://onpurposeassessment.com";
+    adminClient.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${origin}/auth/callback` },
+    }).catch(() => {});
+
+    // 5. Slack notification (fire and forget)
     const slackUrl = process.env.SLACK_WEBHOOK_URL;
     if (slackUrl) {
       const qCounts = { season: 4, expertise: 8, passion: 7 };
