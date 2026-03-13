@@ -23,6 +23,10 @@ export async function POST(request: Request) {
       season,
       profile_name,
       season_cohort,
+      season_confidence,
+      season_presumed,
+      season_self_select,
+      season_confirmation_score,
     } = body;
 
     // 1. Look up user by email (filtered query, not full list)
@@ -96,6 +100,10 @@ export async function POST(request: Request) {
       season,
       profile_name,
       season_cohort,
+      season_confidence: season_confidence || "high",
+      season_presumed: season_presumed || null,
+      season_self_select: season_self_select || null,
+      season_confirmation_score: season_confirmation_score || null,
     };
     console.log("[assessment/submit] Inserting assessment_results:", JSON.stringify(insertPayload, null, 2));
 

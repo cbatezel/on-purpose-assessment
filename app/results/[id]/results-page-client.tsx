@@ -19,9 +19,16 @@ interface Props {
   profile: { name: string; mirrorLine: string; description: string; question: string };
   gap: string | null;
   mismatch: string | null;
+  seasonConfidence?: string;
+  confidenceNarrative?: string;
+  divergenceNarrative?: string | null;
+  lifeEventsNarrative?: string | null;
 }
 
-export default function ResultsPageClient({ behavioral, profile, gap, mismatch }: Props) {
+export default function ResultsPageClient({
+  behavioral, profile, gap, mismatch,
+  seasonConfidence, confidenceNarrative, divergenceNarrative, lifeEventsNarrative,
+}: Props) {
   return (
     <>
       <style>{globalCss}</style>
@@ -45,6 +52,10 @@ export default function ResultsPageClient({ behavioral, profile, gap, mismatch }
           mismatch={mismatch}
           showShare={true}
           animated={false}
+          seasonConfidence={seasonConfidence}
+          confidenceNarrative={confidenceNarrative}
+          divergenceNarrative={divergenceNarrative}
+          lifeEventsNarrative={lifeEventsNarrative}
         />
       </div>
     </>

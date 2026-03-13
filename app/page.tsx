@@ -8,7 +8,7 @@ import ResultsDisplay from "@/components/results-display";
 type Season = "Identity" | "Exploration" | "Influence" | "Multiplication";
 type Alignment = "Behind" | "Aligned" | "Ahead";
 type ProfileKey = `${Season}_${Alignment}`;
-type SectionKey = "season" | "expertise" | "passion";
+type SeasonConfidence = "high" | "medium" | "low";
 
 interface ResultData {
   profile: { name: string; mirrorLine: string; description: string; question: string };
@@ -17,6 +17,9 @@ interface ResultData {
   pStage: string;
   gap: string | null;
   mismatch: string | null;
+  seasonConfidence: SeasonConfidence;
+  seasonConfirmationScore: number;
+  lifeEventCount: number;
 }
 
 // ── TOKENS ─────────────────────────────────────────────────────
@@ -64,61 +67,152 @@ function getDays(month: string, year: string) {
   );
 }
 
-const genderOptions       = ["Male","Female","Non-binary","Prefer not to say"];
+const genderOptions       = ["Male","Female","Prefer not to say"];
 const relationshipOptions = ["Single","Married","Partnered","Divorced","Widowed","Prefer not to say"];
 
-// ── QUESTIONS ──────────────────────────────────────────────────
-const questions = {
-  season: [
-    {id:"s1",text:"I have a clear sense of what I believe and what I'm willing to stand behind.",season:"Identity"},
-    {id:"s2",text:"I'm more focused on getting broad experience right now than finding my lane.",season:"Exploration"},
-    {id:"s3",text:"I know what I'm best at, and I'm actively going deeper on it.",season:"Influence"},
-    {id:"s4",text:"I get more energy from helping others step into their potential than doing the work myself.",season:"Multiplication"},
-    {id:"s5",text:"I'm still working out what kind of person I want to be.",season:"Identity",inverse:true},
-    {id:"s6",text:"I say yes to most opportunities because I'm still figuring out where I add the most value.",season:"Exploration"},
-    {id:"s7",text:"I've earned the right to say no — and I'm using it.",season:"Influence"},
-    {id:"s8",text:"My biggest contribution right now is probably through someone else, not my own output.",season:"Multiplication"},
+// ── SEASON CONFIRMATION QUESTIONS (tailored per presumed season) ──
+const seasonConfirmationQuestions: Record<string, Array<{id: string; text: string; bs?: boolean}>> = {
+  Identity: [
+    {id:"sc1",text:"I'm actively clarifying what I believe and what I'm willing to stand behind."},
+    {id:"sc2",text:"I'm building consistency between what I say and what I do."},
+    {id:"sc3",text:"I've had a conversation recently where I was honest about who I am — even when it was uncomfortable."},
+    {id:"sc4",text:"I'm investing in relationships that challenge me to understand myself better."},
+    {id:"sc5",text:"This season has been completely fulfilling in every way.",bs:true},
   ],
-  expertise: [
-    {id:"e1",text:"I regularly invest time improving my craft, even when no one is asking me to.",stage:"Influence"},
-    {id:"e2",text:"I can name the specific thing I'm known for doing well.",stage:"Influence"},
-    {id:"e3",text:"I'm more interested in getting reps than getting recognition right now.",stage:"Exploration"},
-    {id:"e4",text:"I find more energy in teaching others what I know than in doing it myself.",stage:"Multiplication"},
-    {id:"e5",text:"I deliberately practice the fundamentals of my work, even when I already feel competent.",stage:"Influence"},
-    {id:"e6",text:"I say no to opportunities outside my area of focus so I can go deeper on what's inside it.",stage:"Influence"},
-    {id:"e7",text:"The people around me would say they know exactly what I bring.",stage:"Influence"},
-    {id:"e8",text:"I'm still figuring out what kind of work I'm actually good at.",stage:"Identity",inverse:true},
-    {id:"e9",text:"I'm satisfied with the level of expertise I've developed and don't feel much need to keep growing.",stage:"BS",bs:true},
+  Exploration: [
+    {id:"sc1",text:"I've said yes to something in the last few months that I didn't feel ready for."},
+    {id:"sc2",text:"I'm discovering how I best contribute — not just what's available."},
+    {id:"sc3",text:"I'm building competency on purpose, not just collecting experiences."},
+    {id:"sc4",text:"I've gotten feedback recently that helped me see how I'm different from the people around me."},
+    {id:"sc5",text:"I'm perfectly satisfied with where I'm at — I don't wish for anything different.",bs:true},
   ],
-  passion: [
-    {id:"p1",text:"I can name a specific person or group whose situation I feel responsible to help.",stage:"Influence"},
-    {id:"p2",text:"I notice problems in the world that bother me more than they seem to bother others.",stage:"Identity"},
-    {id:"p3",text:"I've recently given time, money, or energy to something that didn't benefit me directly.",stage:"Exploration"},
-    {id:"p4",text:"My passion and my daily work feel meaningfully connected.",stage:"Influence"},
-    {id:"p5",text:"I've named what I won't carry so I can go deeper on what I will.",stage:"Influence"},
-    {id:"p6",text:"I'm more energized by helping others pursue their mission than building my own.",stage:"Multiplication"},
-    {id:"p7",text:"I'm still figuring out what I'm actually willing to fight for.",stage:"Identity",inverse:true},
-    {id:"p8",text:"The cause or people I care about would say I show up for them consistently and without reservation.",stage:"BS",bs:true},
+  Influence: [
+    {id:"sc1",text:"I spend the majority of my time doing the work I'm most effective at."},
+    {id:"sc2",text:"I've clarified where I should say no, and I do it consistently."},
+    {id:"sc3",text:"I've turned down a good opportunity recently because it didn't fit where I'm headed."},
+    {id:"sc4",text:"I'm actively thinking about how to get more done through others."},
+    {id:"sc5",text:"It's always easy for me to do what's asked.",bs:true},
+  ],
+  Multiplication: [
+    {id:"sc1",text:"I've made time for someone behind me in the last month — not because I had to, but because I chose to."},
+    {id:"sc2",text:"I could name who I'm investing in right now."},
+    {id:"sc3",text:"I'm passing on stories and principles, not just instructions."},
+    {id:"sc4",text:"I care more about the mission outlasting me than about my role in it."},
+    {id:"sc5",text:"I'm completely satisfied with every area of my life.",bs:true},
   ],
 };
+
+// ── EXPERTISE & PASSION QUESTIONS ─────────────────────────────────
+interface Question {
+  id: string;
+  text: string;
+  stage?: string;
+  season?: string;
+  inverse?: boolean;
+  bs?: boolean;
+  split?: { work: string; personal: string };
+}
+
+// Questions stored by ID for scoring. Display order is defined separately below.
+const questionsById: Record<string, Question> = {
+  e1: {id:"e1",text:"I regularly invest time improving my craft, even when no one is asking me to.",stage:"Influence"},
+  e2: {id:"e2",text:"In the last month, someone came to me specifically because of a skill they know I have.",stage:"Influence"},
+  e3: {id:"e3",text:"I'm more interested in getting reps than getting recognition right now.",stage:"Exploration"},
+  e4: {id:"e4",text:"I find more energy in teaching others what I know how to do than in doing it myself.",stage:"Multiplication"},
+  e5: {id:"e5",text:"I deliberately practice the fundamentals of my work, even when I already feel competent.",stage:"Influence"},
+  e6: {id:"e6",text:"I've turned down a good opportunity in the last year because it didn't fit where I'm headed.",stage:"Influence"},
+  e7: {id:"e7",text:"",stage:"Influence",split:{work:"The people I work with would say they know exactly how I contribute.",personal:"The people closest to me would say they know exactly how I contribute."}},
+  e8: {id:"e8",text:"If someone asked what I'm best at, I'd have to think about it.",stage:"Identity",inverse:true},
+  e9: {id:"e9",text:"I'm satisfied with the level of expertise I've developed and don't feel much need to keep growing.",stage:"BS",bs:true},
+  p1: {id:"p1",text:"There's a specific person or group I've shown up for repeatedly — not because I had to, but because I chose to.",stage:"Influence"},
+  p2: {id:"p2",text:"I notice problems in the world that bother me more than they seem to bother others.",stage:"Identity"},
+  p3: {id:"p3",text:"I've recently given time, money, or energy to something that didn't benefit me directly.",stage:"Exploration"},
+  p4: {id:"p4",text:"",stage:"Influence",split:{work:"My passion and my professional work feel meaningfully connected.",personal:"My passion and my personal life feel meaningfully connected."}},
+  p5: {id:"p5",text:"I've walked away from something I cared about because it wasn't the thing I cared about most.",stage:"Influence"},
+  p6: {id:"p6",text:"I get more energy from investing in someone else's growth than advancing my own work.",stage:"Multiplication"},
+  p7: {id:"p7",text:"I haven't yet found the thing I'd sacrifice comfort for.",stage:"Identity",inverse:true},
+  p8: {id:"p8",text:"The cause or people I care about would say I show up for them consistently and without reservation.",stage:"BS",bs:true},
+};
+
+// Lists for scoring (original order by ID)
+const questions = {
+  expertise: [questionsById.e1,questionsById.e2,questionsById.e3,questionsById.e4,questionsById.e5,questionsById.e6,questionsById.e7,questionsById.e8,questionsById.e9] as Question[],
+  passion:   [questionsById.p1,questionsById.p2,questionsById.p3,questionsById.p4,questionsById.p5,questionsById.p6,questionsById.p7,questionsById.p8] as Question[],
+};
+
+// Shuffled display order so same-season questions aren't adjacent
+const expertiseDisplayOrder: Question[] = [
+  questionsById.e3, questionsById.e1, questionsById.e8, questionsById.e5,
+  questionsById.e4, questionsById.e2, questionsById.e7, questionsById.e6,
+  questionsById.e9,
+];
+const passionDisplayOrder: Question[] = [
+  questionsById.p2, questionsById.p1, questionsById.p3, questionsById.p7,
+  questionsById.p4, questionsById.p6, questionsById.p5, questionsById.p8,
+];
 
 // ── SCORING ────────────────────────────────────────────────────
 const seasonOrder: Record<string, number> = {Identity:0,Exploration:1,Influence:2,Multiplication:3};
 
-function computeSeasonScore(ans: Record<string, number>) {
-  const s: Record<string, number> = {Identity:0,Exploration:0,Influence:0,Multiplication:0};
-  questions.season.forEach(q=>{const v=ans[q.id]||3; s[q.season]+=q.inverse?6-v:v;});
-  return Object.entries(s).sort((a,b)=>b[1]-a[1])[0][0];
+function getPresumedSeason(birthYear: number): Season {
+  const currentYear = new Date().getFullYear();
+  const age = currentYear - birthYear;
+  if (age <= 20) return "Identity";
+  if (age <= 39) return "Exploration";
+  if (age <= 59) return "Influence";
+  return "Multiplication";
 }
-function computeStage(section: SectionKey, ans: Record<string, number>) {
+
+function determineSeason(
+  presumed: Season,
+  selfSelect: Season,
+  confirmationAvg: number
+): { season: Season; confidence: SeasonConfidence } {
+  let season: Season;
+  let confidence: SeasonConfidence;
+
+  const diff = Math.abs(seasonOrder[presumed] - seasonOrder[selfSelect]);
+
+  if (presumed === selfSelect) {
+    season = presumed;
+    confidence = "high";
+  } else if (diff === 1) {
+    season = selfSelect;
+    confidence = "medium";
+  } else {
+    season = presumed;
+    confidence = "low";
+  }
+
+  // Confirmation score can downgrade confidence
+  if (confirmationAvg < 3.5 && confidence === "high") {
+    confidence = "medium";
+  }
+  if (confirmationAvg < 3.0) {
+    confidence = "low";
+  }
+
+  return { season, confidence };
+}
+
+function computeStage(section: "expertise" | "passion", ans: Record<string, number>) {
   const s: Record<string, number> = {Identity:0,Exploration:0,Influence:0,Multiplication:0};
-  (questions[section] as Array<{id: string; text: string; stage?: string; inverse?: boolean; bs?: boolean}>).filter(q=>!q.bs).forEach(q=>{
+  (questions[section] as Question[]).filter(q=>!q.bs).forEach(q=>{
     if (!q.stage||q.stage==="BS") return;
-    const v = q.inverse?6-(ans[q.id]||3):(ans[q.id]||3);
-    s[q.stage]=(s[q.stage]||0)+v;
+    if (q.split) {
+      // Average work + personal scores
+      const workVal = ans[`${q.id}_work`] || 3;
+      const persVal = ans[`${q.id}_personal`] || 3;
+      const v = (workVal + persVal) / 2;
+      s[q.stage] = (s[q.stage]||0) + (q.inverse ? 6 - v : v);
+    } else {
+      const v = q.inverse ? 6 - (ans[q.id]||3) : (ans[q.id]||3);
+      s[q.stage] = (s[q.stage]||0) + v;
+    }
   });
   return Object.entries(s).sort((a,b)=>b[1]-a[1])[0][0];
 }
+
 function getAlignment(stage: string, season: string): Alignment {
   const d=seasonOrder[stage]-seasonOrder[season];
   return d<0?"Behind":d>0?"Ahead":"Aligned";
@@ -164,6 +258,25 @@ function getMismatchLanguage(self: string | null, behavioral: string){
   return diff===1
     ?`You described yourself as being in the ${self} season — and in a lot of ways, that's accurate. Your answers suggest you may still be doing some of the work of ${behavioral} alongside it. Seasons don't always have clean edges.`
     :`You described yourself as being in the ${self} season. Your answers paint a slightly different picture — one that looks more like ${behavioral}. The gap between where we think we are and where we actually are is often the most useful thing this can surface.`;
+}
+
+function getConfidenceNarrative(season: string, confidence: SeasonConfidence): string {
+  if (confidence === "high") return `You're in the season of ${season}.`;
+  if (confidence === "medium") return `You're most likely in the season of ${season}, though your answers suggest you may be navigating a transition.`;
+  return `Based on where you are in life, you're likely in the season of ${season} — though your answers suggest you may be revisiting some earlier work. That's not uncommon, especially during periods of change.`;
+}
+
+function getDivergenceNarrative(eStage: string, pStage: string, lifeEventCount: number): string | null {
+  if (eStage === pStage) return null;
+  const eDesc = seasonDescriptions[eStage] || eStage;
+  const pDesc = seasonDescriptions[pStage] || pStage;
+  const context = lifeEventCount >= 2 ? "significant life transitions" : "multiple responsibilities or new chapters";
+  return `Your expertise and passion are in different places right now. Your expertise looks like ${eStage}: ${eDesc.charAt(0).toLowerCase() + eDesc.slice(1)} But your passion looks like ${pStage}: ${pDesc.charAt(0).toLowerCase() + pDesc.slice(1)} That's not unusual — especially for people navigating ${context}. The work isn't to force them together. It's to be honest about where each one is.`;
+}
+
+function getLifeEventsNarrative(lifeEventCount: number): string | null {
+  if (lifeEventCount < 3) return null;
+  return "You're carrying a lot of transitions right now. That can make your season feel less clear — not because you're in the wrong one, but because this one is asking a lot of you.";
 }
 
 const likertLabels = ["Strongly Disagree","Disagree","Neutral","Agree","Strongly Agree"];
@@ -353,7 +466,7 @@ function Card({children, style={}}: {children: ReactNode; style?: React.CSSPrope
 
 // ── MAIN APP ───────────────────────────────────────────────────
 export default function App() {
-  // step: 0=landing 1=name/email 2=context 3=life events 4=season 5=questions 6=processing 7=results
+  // step: 0=landing 1=name/email 2=context 3=life events 4=self-season 5=season confirmation 6=questions(expertise+passion) 7=processing 8=results
   const [step, setStep]     = useState(0);
   const [form, setForm]     = useState<{
     name: string; email: string;
@@ -368,6 +481,7 @@ export default function App() {
   });
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [qIndex,  setQIndex]  = useState(0);
+  const [scIndex, setScIndex] = useState(0); // season confirmation question index
   const [result,  setResult]  = useState<ResultData | null>(null);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
@@ -389,27 +503,56 @@ export default function App() {
     });
   },[]);
 
+  // Derive presumed season from DOB
+  const presumedSeason = form.dobYear ? getPresumedSeason(parseInt(form.dobYear)) : null;
+
+  // Get tailored season confirmation questions based on presumed season
+  const scQuestions = presumedSeason ? seasonConfirmationQuestions[presumedSeason] : [];
+
+  // Build the question list for step 6 in shuffled display order
   const allQ = [
-    ...questions.season.map(q=>({...q,section:"season" as const})),
-    ...questions.expertise.map(q=>({...q,section:"expertise" as const})),
-    ...questions.passion.map(q=>({...q,section:"passion" as const})),
+    ...expertiseDisplayOrder.map(q=>({...q,section:"expertise" as const})),
+    ...passionDisplayOrder.map(q=>({...q,section:"passion" as const})),
   ];
-  const totalQ = allQ.length;
+  const totalQ = allQ.length; // 17 question cards (9 expertise + 8 passion)
   const q = allQ[qIndex];
 
   // Scroll to top on step/question change
-  useEffect(()=>{ window.scrollTo({top:0,behavior:"smooth"}); },[step,qIndex]);
+  useEffect(()=>{ window.scrollTo({top:0,behavior:"smooth"}); },[step,qIndex,scIndex]);
 
-  // Compute results when entering processing screen
+  // Compute results when entering processing screen (step 7)
   useEffect(()=>{
-    if (step!==6) return;
-    const behavioral = computeSeasonScore(answers);
-    const eStage     = computeStage("expertise",answers);
-    const pStage     = computeStage("passion",answers);
-    const profile    = getProfile(behavioral,eStage,pStage);
-    const gap        = getGapLanguage(eStage,pStage,behavioral);
-    const mismatch   = getMismatchLanguage(form.selfSeason,behavioral);
-    setResult({profile,behavioral: behavioral as Season,eStage,pStage,gap,mismatch});
+    if (step!==7) return;
+
+    // Compute season from new logic
+    const selfSelectSeason = (form.selfSeason || "Exploration") as Season;
+    const pSeason = presumedSeason || "Exploration";
+
+    // Compute season confirmation score (average of non-BS questions)
+    const scQs = seasonConfirmationQuestions[pSeason];
+    const nonBsScores = scQs.filter(q=>!q.bs).map(q=>answers[q.id]||3);
+    const confirmationAvg = nonBsScores.reduce((a,b)=>a+b,0) / nonBsScores.length;
+
+    const { season: finalSeason, confidence } = determineSeason(pSeason, selfSelectSeason, confirmationAvg);
+
+    const eStage = computeStage("expertise", answers);
+    const pStage = computeStage("passion", answers);
+    const profile = getProfile(finalSeason, eStage, pStage);
+    const gap = getGapLanguage(eStage, pStage, finalSeason);
+    const mismatch = getMismatchLanguage(form.selfSeason, finalSeason);
+    const lifeEventCount = form.lifeEvents.filter(e => e !== "None of these").length;
+
+    setResult({
+      profile,
+      behavioral: finalSeason,
+      eStage,
+      pStage,
+      gap,
+      mismatch,
+      seasonConfidence: confidence,
+      seasonConfirmationScore: confirmationAvg,
+      lifeEventCount,
+    });
 
     // Split answers into sections and compute scores
     const seasonAnswers: Record<string, number> = {};
@@ -417,16 +560,35 @@ export default function App() {
     const passionAnswers: Record<string, number> = {};
     const bsAnswers: Record<string, number> = {};
 
-    questions.season.forEach(q => { if (answers[q.id]) seasonAnswers[q.id] = answers[q.id]; });
+    // Season confirmation answers
+    scQs.forEach(q => {
+      if (answers[q.id]) {
+        if (q.bs) bsAnswers[q.id] = answers[q.id];
+        else seasonAnswers[q.id] = answers[q.id];
+      }
+    });
+
     questions.expertise.forEach(q => {
-      if (!answers[q.id]) return;
-      if (q.bs) bsAnswers[q.id] = answers[q.id];
-      else expertiseAnswers[q.id] = answers[q.id];
+      if (q.split) {
+        const wKey = `${q.id}_work`, pKey = `${q.id}_personal`;
+        if (answers[wKey]) expertiseAnswers[wKey] = answers[wKey];
+        if (answers[pKey]) expertiseAnswers[pKey] = answers[pKey];
+      } else {
+        if (!answers[q.id]) return;
+        if (q.bs) bsAnswers[q.id] = answers[q.id];
+        else expertiseAnswers[q.id] = answers[q.id];
+      }
     });
     questions.passion.forEach(q => {
-      if (!answers[q.id]) return;
-      if (q.bs) bsAnswers[q.id] = answers[q.id];
-      else passionAnswers[q.id] = answers[q.id];
+      if (q.split) {
+        const wKey = `${q.id}_work`, pKey = `${q.id}_personal`;
+        if (answers[wKey]) passionAnswers[wKey] = answers[wKey];
+        if (answers[pKey]) passionAnswers[pKey] = answers[pKey];
+      } else {
+        if (!answers[q.id]) return;
+        if (q.bs) bsAnswers[q.id] = answers[q.id];
+        else passionAnswers[q.id] = answers[q.id];
+      }
     });
 
     const sum = (obj: Record<string, number>) => Object.values(obj).reduce((a, b) => a + b, 0);
@@ -462,9 +624,13 @@ export default function App() {
         expertise_score: sum(expertiseAnswers),
         passion_score: sum(passionAnswers),
         bs_score: sum(bsAnswers),
-        season: behavioral,
+        season: finalSeason,
         profile_name: profile.name,
         season_cohort: seasonCohort,
+        season_confidence: confidence,
+        season_presumed: pSeason,
+        season_self_select: selfSelectSeason,
+        season_confirmation_score: parseFloat(confirmationAvg.toFixed(2)),
       }),
     })
       .then(res => {
@@ -477,7 +643,7 @@ export default function App() {
       })
       .catch(err => { console.error("[assessment] Submit fetch error:", err); });
 
-    const t = setTimeout(()=>setStep(7),2600);
+    const t = setTimeout(()=>setStep(8),2600);
     return ()=>clearTimeout(t);
   },[step]); // eslint-disable-line
 
@@ -494,22 +660,63 @@ export default function App() {
     setAnswers(prev=>({...prev,[id]:val}));
     setTimeout(()=>{
       setAdvancing(false);
-      if (qIndex < totalQ-1) setQIndex(i=>i+1);
-      else setStep(6);
+      if (step === 5) {
+        // Season confirmation questions
+        if (scIndex < scQuestions.length - 1) setScIndex(i=>i+1);
+        else { setQIndex(0); setStep(6); }
+      } else {
+        // Expertise + passion questions
+        if (qIndex < totalQ-1) setQIndex(i=>i+1);
+        else setStep(7);
+      }
     }, 400);
+  },[advancing, qIndex, totalQ, step, scIndex, scQuestions.length]);
+
+  // Handle split question answers — both must be answered before advancing
+  const handleSplitAnswer = useCallback((baseId: string, subKey: "work" | "personal", val: number) => {
+    const fullId = `${baseId}_${subKey}`;
+    setAnswers(prev => {
+      const next = {...prev, [fullId]: val};
+      // Check if both work and personal are answered
+      const otherKey = subKey === "work" ? `${baseId}_personal` : `${baseId}_work`;
+      if (next[otherKey]) {
+        // Both answered — auto-advance after delay
+        if (!advancing) {
+          setAdvancing(true);
+          setTimeout(()=>{
+            setAdvancing(false);
+            if (qIndex < totalQ-1) setQIndex(i=>i+1);
+            else setStep(7);
+          }, 400);
+        }
+      }
+      return next;
+    });
   },[advancing, qIndex, totalQ]);
 
-  // Keyboard support for question screens
+  // Keyboard support for question screens (steps 5 and 6)
   useEffect(()=>{
-    if (step!==5 || !q) return;
+    if (step !== 5 && step !== 6) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key>="1" && e.key<="5") { handleAnswer(q.id, Number(e.key)); return; }
-      if (e.key==="Enter" && answers[q.id]) { handleAnswer(q.id, answers[q.id]); return; }
-      if (e.key==="ArrowLeft") { if(qIndex===0) setStep(4); else setQIndex(i=>i-1); return; }
+      if (step === 5) {
+        const scQ = scQuestions[scIndex];
+        if (!scQ) return;
+        if (e.key>="1" && e.key<="5") { handleAnswer(scQ.id, Number(e.key)); return; }
+        if (e.key==="ArrowLeft") { if(scIndex===0) setStep(4); else setScIndex(i=>i-1); return; }
+      } else if (step === 6 && q) {
+        if (q.split) {
+          // No keyboard shortcuts for split questions — they need two answers
+          if (e.key==="ArrowLeft") { if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(5); } else setQIndex(i=>i-1); return; }
+        } else {
+          if (e.key>="1" && e.key<="5") { handleAnswer(q.id, Number(e.key)); return; }
+          if (e.key==="Enter" && answers[q.id]) { handleAnswer(q.id, answers[q.id]); return; }
+          if (e.key==="ArrowLeft") { if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(5); } else setQIndex(i=>i-1); return; }
+        }
+      }
     };
     window.addEventListener("keydown", handler);
     return ()=>window.removeEventListener("keydown", handler);
-  },[step, q, qIndex, handleAnswer, answers]);
+  },[step, q, qIndex, scIndex, scQuestions, handleAnswer, answers]);
 
   // Keyboard support for pre-assessment screens
   useEffect(()=>{
@@ -528,7 +735,7 @@ export default function App() {
       if (step===1 && can1) setStep(2);
       else if (step===2 && can2) setStep(3);
       else if (step===3 && can3) setStep(4);
-      else if (step===4 && can4) { setQIndex(0); setStep(5); }
+      else if (step===4 && can4) { setScIndex(0); setStep(5); }
     };
     window.addEventListener("keydown", handler);
     return ()=>window.removeEventListener("keydown", handler);
@@ -542,15 +749,36 @@ export default function App() {
     });
   };
 
+  // Total displayed questions: 5 season confirmation + 17 expertise/passion cards = 22 cards
+  const totalDisplayedQ = scQuestions.length + totalQ;
+
   // Progress bar value
   const progress =
     step===0?0 : step===1?5 : step===2?14 : step===3?20 : step===4?26 :
-    step===5 ? 26+Math.round((qIndex/totalQ)*66) : step===6?95 : 100;
+    step===5 ? 26+Math.round((scIndex/totalDisplayedQ)*66) :
+    step===6 ? 26+Math.round(((scQuestions.length+qIndex)/totalDisplayedQ)*66) :
+    step===7?95 : 100;
 
   const days = getDays(form.dobMonth, form.dobYear);
 
   // Gap between stacked fields inside a card
   const fieldGap = {marginBottom:18};
+
+  // Current section label for question screens
+  const getSectionLabel = () => {
+    if (step === 5) return "Section 1 of 3";
+    if (step === 6 && q) {
+      return q.section === "expertise" ? "Section 2 of 3" : "Section 3 of 3";
+    }
+    return "";
+  };
+
+  // Current question number across all sections
+  const getCurrentQNumber = () => {
+    if (step === 5) return scIndex + 1;
+    if (step === 6) return scQuestions.length + qIndex + 1;
+    return 0;
+  };
 
   return (
     <>
@@ -558,7 +786,7 @@ export default function App() {
       <div style={{minHeight:"100vh",background:C.bg}}>
 
         {/* Single progress bar */}
-        {step>0 && step<7 && (
+        {step>0 && step<8 && (
           <div style={{position:"fixed",top:0,left:0,right:0,height:3,background:C.border,zIndex:100}}>
             <div style={{height:"100%",background:C.red,width:`${progress}%`,
               transition:"width 0.5s cubic-bezier(0.4,0,0.2,1)"}}/>
@@ -653,7 +881,7 @@ export default function App() {
             <TopBar onBack={()=>setStep(1)} label="A bit of context"/>
             <Screen>
               <SectionTitle>Tell us a little more about where you are.</SectionTitle>
-              <BodyText>This helps us personalize your results. It won't change your scores.</BodyText>
+              <BodyText>This helps us personalize your results. It won&apos;t change your scores.</BodyText>
               <Card>
                 {/* Date of birth — three dropdowns, no native date input */}
                 <div style={fieldGap}>
@@ -675,6 +903,9 @@ export default function App() {
                       {birthYears.map(y=><option key={y} value={y}>{y}</option>)}
                     </NativeSelect>
                   </div>
+                  <p style={{fontSize:11,color:C.inkLight,marginTop:6,fontFamily:"'DM Mono',monospace",letterSpacing:"0.02em"}}>
+                    We use this to calibrate your questions — not to put you in a box.
+                  </p>
                 </div>
 
                 {/* Gender + Relationship — side by side */}
@@ -712,7 +943,7 @@ export default function App() {
             <TopBar onBack={()=>setStep(2)} label="A bit of context"/>
             <Screen>
               <SectionTitle>Has anything shifted recently?</SectionTitle>
-              <BodyText>Check anything that applies to the last six months. This won't change your scores — it helps us understand your context.</BodyText>
+              <BodyText>Have any of these significantly impacted where you are right now? This won&apos;t change your scores — it helps us understand your context.</BodyText>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
                 {lifeEvents.map(ev=>{
                   const on = form.lifeEvents.includes(ev);
@@ -758,7 +989,7 @@ export default function App() {
             <TopBar onBack={()=>setStep(3)} label="Section 1 of 3"/>
             <Screen>
               <SectionTitle>Which of these sounds most like where you are right now?</SectionTitle>
-              <BodyText>Pick the one that fits best — not the one you're aiming for.</BodyText>
+              <BodyText>Pick the one that fits best — not the one you&apos;re aiming for.</BodyText>
               {selfConfirmOptions.map((opt,i)=>{
                 const on = form.selfSeason===opt.season;
                 return (
@@ -778,7 +1009,7 @@ export default function App() {
                 );
               })}
               <div style={{marginTop:18}}>
-                <PrimaryBtn onClick={()=>{setQIndex(0);setStep(5);}} disabled={!can4}>
+                <PrimaryBtn onClick={()=>{setScIndex(0);setStep(5);}} disabled={!can4}>
                   Start the Assessment
                 </PrimaryBtn>
               </div>
@@ -791,31 +1022,36 @@ export default function App() {
           </>
         )}
 
-        {/* ── 5: QUESTIONS ───────────────────────────────────── */}
-        {step===5 && q && (
-          <div className="fu" key={qIndex}
+        {/* ── 5: SEASON CONFIRMATION QUESTIONS ─────────────────── */}
+        {step===5 && scQuestions[scIndex] && (
+          <div className="fu" key={`sc-${scIndex}`}
             style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
-            {/* Same top-bar style as other screens — just arrow, no label */}
-            <div style={{padding:"14px 20px 0",marginBottom:28}}>
-              <BackArrow onClick={()=>{ if(qIndex===0) setStep(4); else setQIndex(i=>i-1); }}/>
+            <div style={{
+              display:"flex",alignItems:"center",justifyContent:"space-between",
+              padding:"14px 20px 0",marginBottom:28,
+            }}>
+              <BackArrow onClick={()=>{ if(scIndex===0) setStep(4); else setScIndex(i=>i-1); }}/>
+              <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,
+                letterSpacing:"0.1em",textTransform:"uppercase",color:C.sage}}>
+                {getCurrentQNumber()} of {totalDisplayedQ}
+              </span>
+              <div style={{width:36}}/>
             </div>
 
-            {/* Question + answers */}
             <div style={{flex:1,padding:"0 22px 32px",
               display:"flex",flexDirection:"column",maxWidth:600,width:"100%",margin:"0 auto"}}>
-              {/* Fixed-height question area so answers stay at the same position */}
               <div style={{minHeight:140,display:"flex",alignItems:"flex-start"}}>
                 <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
                   fontSize:"clamp(21px,4vw,28px)",fontWeight:600,lineHeight:1.35,
                   color:C.ink}}>
-                  {q.text}
+                  {scQuestions[scIndex].text}
                 </h2>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:9}}>
                 {likertLabels.map((label,i)=>{
-                  const on = answers[q.id]===i+1;
+                  const on = answers[scQuestions[scIndex].id]===i+1;
                   return (
-                    <div key={i} onClick={()=>handleAnswer(q.id,i+1)} style={{
+                    <div key={i} onClick={()=>handleAnswer(scQuestions[scIndex].id,i+1)} style={{
                       display:"flex",alignItems:"center",gap:13,
                       padding:"13px 16px",borderRadius:9,cursor:"pointer",
                       border:`1.5px solid ${on?C.red:C.border}`,
@@ -845,8 +1081,146 @@ export default function App() {
           </div>
         )}
 
-        {/* ── 6: PROCESSING ──────────────────────────────────── */}
-        {step===6 && (
+        {/* ── 6: EXPERTISE + PASSION QUESTIONS ─────────────────── */}
+        {step===6 && q && (
+          <div className="fu" key={`q-${qIndex}`}
+            style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+            <div style={{
+              display:"flex",alignItems:"center",justifyContent:"space-between",
+              padding:"14px 20px 0",marginBottom:28,
+            }}>
+              <BackArrow onClick={()=>{ if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(5); } else setQIndex(i=>i-1); }}/>
+              <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,
+                letterSpacing:"0.1em",textTransform:"uppercase",color:C.sage}}>
+                {getCurrentQNumber()} of {totalDisplayedQ}
+              </span>
+              <div style={{width:36}}/>
+            </div>
+
+            <div style={{flex:1,padding:"0 22px 32px",
+              display:"flex",flexDirection:"column",maxWidth:600,width:"100%",margin:"0 auto"}}>
+
+              {q.split ? (
+                /* ── SPLIT QUESTION (work/personal) ── */
+                <>
+                  {/* Work sub-question */}
+                  <div style={{marginBottom:32}}>
+                    <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
+                      fontSize:"clamp(19px,3.5vw,24px)",fontWeight:600,lineHeight:1.35,
+                      color:C.ink,marginBottom:16}}>
+                      {q.split.work}
+                    </h2>
+                    <div style={{display:"flex",gap:8}}>
+                      {likertLabels.map((label,i)=>{
+                        const on = answers[`${q.id}_work`]===i+1;
+                        return (
+                          <div key={i} onClick={()=>handleSplitAnswer(q.id,"work",i+1)}
+                            title={label}
+                            style={{
+                              flex:1,display:"flex",alignItems:"center",justifyContent:"center",
+                              height:44,borderRadius:9,cursor:"pointer",
+                              border:`1.5px solid ${on?C.red:C.border}`,
+                              background:on?C.redLight:C.white,
+                              transition:"all 0.12s",userSelect:"none",
+                              touchAction:"manipulation",
+                              fontFamily:"'DM Mono',monospace",fontSize:14,
+                              fontWeight:on?600:400,color:on?C.red:C.inkLight,
+                            }}>
+                            {i+1}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:4,
+                      fontSize:10,color:C.inkLight,fontFamily:"'DM Mono',monospace"}}>
+                      <span>Strongly Disagree</span>
+                      <span>Strongly Agree</span>
+                    </div>
+                  </div>
+
+                  {/* Personal sub-question */}
+                  <div>
+                    <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
+                      fontSize:"clamp(19px,3.5vw,24px)",fontWeight:600,lineHeight:1.35,
+                      color:C.ink,marginBottom:16}}>
+                      {q.split.personal}
+                    </h2>
+                    <div style={{display:"flex",gap:8}}>
+                      {likertLabels.map((label,i)=>{
+                        const on = answers[`${q.id}_personal`]===i+1;
+                        return (
+                          <div key={i} onClick={()=>handleSplitAnswer(q.id,"personal",i+1)}
+                            title={label}
+                            style={{
+                              flex:1,display:"flex",alignItems:"center",justifyContent:"center",
+                              height:44,borderRadius:9,cursor:"pointer",
+                              border:`1.5px solid ${on?C.red:C.border}`,
+                              background:on?C.redLight:C.white,
+                              transition:"all 0.12s",userSelect:"none",
+                              touchAction:"manipulation",
+                              fontFamily:"'DM Mono',monospace",fontSize:14,
+                              fontWeight:on?600:400,color:on?C.red:C.inkLight,
+                            }}>
+                            {i+1}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:4,
+                      fontSize:10,color:C.inkLight,fontFamily:"'DM Mono',monospace"}}>
+                      <span>Strongly Disagree</span>
+                      <span>Strongly Agree</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* ── STANDARD QUESTION ── */
+                <>
+                  <div style={{minHeight:140,display:"flex",alignItems:"flex-start"}}>
+                    <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
+                      fontSize:"clamp(21px,4vw,28px)",fontWeight:600,lineHeight:1.35,
+                      color:C.ink}}>
+                      {q.text}
+                    </h2>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:9}}>
+                    {likertLabels.map((label,i)=>{
+                      const on = answers[q.id]===i+1;
+                      return (
+                        <div key={i} onClick={()=>handleAnswer(q.id,i+1)} style={{
+                          display:"flex",alignItems:"center",gap:13,
+                          padding:"13px 16px",borderRadius:9,cursor:"pointer",
+                          border:`1.5px solid ${on?C.red:C.border}`,
+                          borderLeft:`${on?3:1.5}px solid ${on?C.red:C.border}`,
+                          background:on?C.redLight:C.white,
+                          transition:"all 0.12s",userSelect:"none",
+                          touchAction:"manipulation",
+                        }}>
+                          <div style={{
+                            width:20,height:20,borderRadius:"50%",flexShrink:0,
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            background:on?C.red:"transparent",
+                            border:`2px solid ${on?C.red:C.border}`,
+                            transition:"all 0.12s",
+                          }}>
+                            {on && <div style={{width:8,height:8,borderRadius:"50%",background:"white"}}/>}
+                          </div>
+                          <span style={{fontSize:15,color:C.ink}}>{label}</span>
+                          <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",
+                            fontSize:12,color:C.inkLight}}>{i+1}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+            <PoweredBy/>
+          </div>
+        )}
+
+        {/* ── 7: PROCESSING ──────────────────────────────────── */}
+        {step===7 && (
           <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",
             alignItems:"center",justifyContent:"center",textAlign:"center",padding:"48px 24px"}}>
             <div style={{width:42,height:42,borderRadius:"50%",background:C.red,
@@ -858,8 +1232,8 @@ export default function App() {
           </div>
         )}
 
-        {/* ── 7: RESULTS ─────────────────────────────────────── */}
-        {step===7 && result && (
+        {/* ── 8: RESULTS ─────────────────────────────────────── */}
+        {step===8 && result && (
           <ResultsDisplay
             behavioral={result.behavioral}
             profile={result.profile}
@@ -873,10 +1247,15 @@ export default function App() {
               setForm({name:"",email:"",dobMonth:"",dobDay:"",dobYear:"",gender:"",vocation:"",relationship:"",lifeEvents:[],selfSeason:null});
               setAnswers({});
               setQIndex(0);
+              setScIndex(0);
               setResult(null);
               setAssessmentId(null);
             }}
             animated={true}
+            seasonConfidence={result.seasonConfidence}
+            confidenceNarrative={getConfidenceNarrative(result.behavioral, result.seasonConfidence)}
+            divergenceNarrative={getDivergenceNarrative(result.eStage, result.pStage, result.lifeEventCount)}
+            lifeEventsNarrative={getLifeEventsNarrative(result.lifeEventCount)}
           />
         )}
 

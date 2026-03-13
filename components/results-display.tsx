@@ -18,6 +18,10 @@ export interface ResultsDisplayProps {
   showStartOver?: boolean;
   onStartOver?: () => void;
   animated?: boolean;
+  seasonConfidence?: string;
+  confidenceNarrative?: string;
+  divergenceNarrative?: string | null;
+  lifeEventsNarrative?: string | null;
 }
 
 function Divider() {
@@ -39,6 +43,7 @@ function SecondaryBtn({children,onClick}: {children: React.ReactNode; onClick?: 
 export default function ResultsDisplay({
   behavioral, profile, gap, mismatch, email,
   showShare = false, showStartOver = false, onStartOver, animated = true,
+  seasonConfidence, confidenceNarrative, divergenceNarrative, lifeEventsNarrative,
 }: ResultsDisplayProps) {
   const [copied, setCopied] = useState(false);
 
@@ -86,6 +91,14 @@ export default function ResultsDisplay({
         &ldquo;{profile.mirrorLine}&rdquo;
       </p>
 
+      {/* Confidence-based season framing */}
+      {confidenceNarrative && (
+        <div className={a} style={{fontSize:15,lineHeight:1.7,color:C.inkMid,
+          marginTop:8,marginBottom:4,...delay("0.32s")}}>
+          {confidenceNarrative}
+        </div>
+      )}
+
       {mismatch && (
         <div className={a} style={{background:C.redLight,borderLeft:`3px solid ${C.red}`,
           borderRadius:"0 9px 9px 0",padding:"13px 17px",marginTop:13,
@@ -94,11 +107,30 @@ export default function ResultsDisplay({
         </div>
       )}
 
+      {/* Life events acknowledgment */}
+      {lifeEventsNarrative && (
+        <div className={a} style={{background:C.sageLight,borderLeft:`3px solid ${C.sage}`,
+          borderRadius:"0 9px 9px 0",padding:"13px 17px",marginTop:13,
+          fontSize:14,lineHeight:1.65,color:C.inkMid,...delay("0.37s")}}>
+          {lifeEventsNarrative}
+        </div>
+      )}
+
       <div className={a} style={{marginTop:16,...delay("0.35s")}}>
         <p style={{fontSize:16,lineHeight:1.75,color:C.ink}}>{seasonDescriptions[behavioral]}</p>
       </div>
 
       <Divider/>
+
+      {/* Expertise/Passion Divergence */}
+      {divergenceNarrative && (
+        <div style={animated ? {animation:"fadeUp 0.5s ease-out 0.45s both"} : {}}>
+          <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.08em",
+            textTransform:"uppercase",color:C.sage,marginBottom:9}}>Expertise &amp; Passion</div>
+          <p style={{fontSize:15,lineHeight:1.7,color:C.inkMid}}>{divergenceNarrative}</p>
+          <Divider/>
+        </div>
+      )}
 
       {/* Where the Tension Is */}
       <div style={animated ? {animation:"fadeUp 0.5s ease-out 0.5s both"} : {}}>
