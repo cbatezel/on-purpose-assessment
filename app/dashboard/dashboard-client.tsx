@@ -258,18 +258,21 @@ export default function DashboardClient({ name, results, isAdmin = false, latest
                   }}>Update Feedback</button>
                 </>
               ) : fbSubmitted ? (
-                <div style={{ textAlign: "center", padding: "16px 0" }}>
-                  <p style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 18,
-                    fontStyle: "italic", color: C.inkMid, lineHeight: 1.5 }}>
-                    Thank you — this helps more than you know.
-                  </p>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "16px 0" }}>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <circle cx="9" cy="9" r="8" stroke={accent} strokeWidth="1.5" fill="none"/>
+                    <path d="M5.5 9l2.5 2.5 4.5-5" stroke={accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: C.inkMid }}>
+                    Thanks for your feedback.
+                  </span>
                 </div>
               ) : (
                 <>
                   <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif",
                     fontSize: "clamp(20px,4vw,26px)", fontWeight: 600, color: C.ink,
                     lineHeight: 1.2, marginBottom: 6 }}>
-                    You&apos;re part of the first wave<span style={{ color: C.red }}>.</span>
+                    We want your feedback<span style={{ color: C.red }}>.</span>
                   </h2>
                   <p style={{ fontSize: 14, lineHeight: 1.6, color: C.inkLight, marginBottom: 24 }}>
                     This assessment is new, and your perspective matters. We&apos;d love to hear what you think.
