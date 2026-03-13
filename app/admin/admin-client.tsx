@@ -131,8 +131,11 @@ export default function AdminClient({
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", birth_year: "", gender: "", is_admin: false });
-  const [mergeEmail, setMergeEmail] = useState("");
+  const [mergeSearch, setMergeSearch] = useState("");
+  const [mergeTarget, setMergeTarget] = useState<UserRow | null>(null);
   const [mergeConfirm, setMergeConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Assessments tab state
@@ -169,8 +172,11 @@ export default function AdminClient({
   const handleEditUser = (u: UserRow) => {
     setEditingUser(u);
     setEditForm({ name: u.name, email: u.email, birth_year: "", gender: "", is_admin: false });
-    setMergeEmail("");
+    setMergeSearch("");
+    setMergeTarget(null);
     setMergeConfirm(false);
+    setShowDeleteConfirm(false);
+    setDeleteConfirmEmail("");
   };
 
   const handleSaveUser = async () => {
@@ -194,21 +200,42 @@ export default function AdminClient({
   };
 
   const handleMerge = async () => {
-    if (!editingUser || !mergeEmail.trim()) return;
-    const target = users.find(u => u.email.toLowerCase() === mergeEmail.trim().toLowerCase());
-    if (!target) { alert("User not found with that email."); return; }
-    if (target.userId === editingUser.userId) { alert("Cannot merge into same user."); return; }
+    if (!editingUser || !mergeTarget) return;
     setSaving(true);
     await fetch("/api/admin/merge", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sourceUserId: editingUser.userId, targetUserId: target.userId }),
+      body: JSON.stringify({ sourceUserId: editingUser.userId, targetUserId: mergeTarget.userId }),
     });
     setSaving(false);
     setEditingUser(null);
     setMergeConfirm(false);
+    setMergeTarget(null);
     router.refresh();
   };
+
+  const handleDeleteUser = async () => {
+    if (!editingUser) return;
+    setSaving(true);
+    await fetch("/api/admin/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: editingUser.userId }),
+    });
+    setSaving(false);
+    setEditingUser(null);
+    setShowDeleteConfirm(false);
+    setDeleteConfirmEmail("");
+    router.refresh();
+  };
+
+  const mergeSearchResults = mergeSearch.trim().length >= 2 && editingUser
+    ? users.filter(u => {
+        if (u.userId === editingUser.userId) return false;
+        const q = mergeSearch.toLowerCase();
+        return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+      }).slice(0, 8)
+    : [];
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
@@ -429,7 +456,7 @@ export default function AdminClient({
                   position:"fixed",top:0,left:0,right:0,bottom:0,
                   background:"rgba(28,27,25,0.5)",zIndex:1000,
                   display:"flex",alignItems:"center",justifyContent:"center",padding:20,
-                }} onClick={e=>{if(e.target===e.currentTarget){setEditingUser(null);setMergeConfirm(false);}}}>
+                }} onClick={e=>{if(e.target===e.currentTarget){setEditingUser(null);setMergeConfirm(false);setMergeTarget(null);setMergeSearch("");setShowDeleteConfirm(false);setDeleteConfirmEmail("");}}}>
                   <div style={{
                     background:C.white,borderRadius:16,padding:"28px 24px",
                     maxWidth:460,width:"100%",boxShadow:"0 8px 40px rgba(28,27,25,0.18)",
@@ -480,7 +507,7 @@ export default function AdminClient({
                         <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkMid}}>Admin</span>
                       </label>
                       <div style={{display:"flex",gap:8,marginTop:4}}>
-                        <button onClick={()=>{setEditingUser(null);setMergeConfirm(false);}} style={{
+                        <button onClick={()=>{setEditingUser(null);setMergeConfirm(false);setMergeTarget(null);setShowDeleteConfirm(false);}} style={{
                           flex:1,height:42,borderRadius:8,border:`1.5px solid ${C.border}`,
                           background:"transparent",fontFamily:"'DM Sans',sans-serif",fontSize:14,
                           fontWeight:500,color:C.inkMid,cursor:"pointer",
@@ -492,27 +519,77 @@ export default function AdminClient({
                         }}>{saving?"Saving...":"Save"}</button>
                       </div>
                       <hr style={{border:"none",borderTop:`1px solid ${C.border}`,margin:"8px 0"}} />
+                      {/* Merge User */}
                       <div>
                         <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
                           textTransform:"uppercase",color:C.red,marginBottom:8}}>Merge User</div>
                         <p style={{fontSize:12,color:C.inkMid,lineHeight:1.5,marginBottom:8}}>
                           Move all assessments from this user to another user, then delete this account.
                         </p>
-                        <input value={mergeEmail} onChange={e=>{setMergeEmail(e.target.value);setMergeConfirm(false);}}
-                          placeholder="Target user email..."
-                          style={{width:"100%",height:40,border:`1.5px solid ${C.border}`,borderRadius:8,
-                            padding:"0 12px",fontFamily:"'DM Sans',sans-serif",fontSize:14,color:C.ink,background:C.bg,outline:"none",marginBottom:8}} />
-                        {!mergeConfirm ? (
-                          <button onClick={()=>{if(mergeEmail.trim())setMergeConfirm(true);}} disabled={!mergeEmail.trim()} style={{
-                            width:"100%",height:40,borderRadius:8,border:`1.5px solid ${C.red}`,
-                            background:"transparent",fontFamily:"'DM Sans',sans-serif",fontSize:13,
-                            fontWeight:600,color:C.red,cursor:mergeEmail.trim()?"pointer":"default",
-                            opacity:mergeEmail.trim()?1:0.4,
-                          }}>Merge &amp; Delete</button>
+                        {!mergeTarget ? (
+                          <div style={{position:"relative"}}>
+                            <input value={mergeSearch} onChange={e=>{setMergeSearch(e.target.value);setMergeConfirm(false);}}
+                              placeholder="Search by name or email..."
+                              style={{width:"100%",height:40,border:`1.5px solid ${C.border}`,borderRadius:8,
+                                padding:"0 12px",fontFamily:"'DM Sans',sans-serif",fontSize:14,color:C.ink,background:C.bg,outline:"none"}} />
+                            {mergeSearchResults.length > 0 && (
+                              <div style={{
+                                position:"absolute",top:44,left:0,right:0,zIndex:10,
+                                background:C.white,border:`1px solid ${C.border}`,borderRadius:8,
+                                boxShadow:"0 4px 20px rgba(28,27,25,0.12)",maxHeight:240,overflowY:"auto",
+                              }}>
+                                {mergeSearchResults.map(u => (
+                                  <button key={u.userId} onClick={()=>{setMergeTarget(u);setMergeSearch("");}} style={{
+                                    display:"flex",alignItems:"center",justifyContent:"space-between",
+                                    width:"100%",padding:"10px 14px",border:"none",background:"transparent",
+                                    cursor:"pointer",textAlign:"left",borderBottom:`1px solid ${C.border}`,
+                                  }}
+                                    onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                                  >
+                                    <div>
+                                      <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,color:C.ink}}>{u.name||"—"}</div>
+                                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight}}>{u.email}</div>
+                                    </div>
+                                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight,flexShrink:0}}>
+                                      {u.count} assessment{u.count!==1?"s":""}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : !mergeConfirm ? (
+                          <div>
+                            <div style={{background:C.bg,borderRadius:8,padding:12,marginBottom:8}}>
+                              <div style={{fontSize:12,color:C.inkMid,lineHeight:1.6}}>
+                                <strong style={{color:C.ink}}>{editingUser.name||"—"}</strong>{" "}
+                                <span style={{fontFamily:"'DM Mono',monospace",fontSize:11}}>({editingUser.email})</span>
+                                <span style={{display:"inline-block",margin:"0 6px",color:C.red}}>→</span>
+                                <strong style={{color:C.ink}}>{mergeTarget.name||"—"}</strong>{" "}
+                                <span style={{fontFamily:"'DM Mono',monospace",fontSize:11}}>({mergeTarget.email})</span>
+                              </div>
+                              <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight,marginTop:4}}>
+                                {editingUser.count} assessment{editingUser.count!==1?"s":""} will be moved to {mergeTarget.name||mergeTarget.email}
+                              </div>
+                            </div>
+                            <div style={{display:"flex",gap:8}}>
+                              <button onClick={()=>{setMergeTarget(null);setMergeSearch("");}} style={{
+                                flex:1,height:40,borderRadius:8,border:`1.5px solid ${C.border}`,
+                                background:"transparent",fontFamily:"'DM Sans',sans-serif",fontSize:13,
+                                fontWeight:500,color:C.inkMid,cursor:"pointer",
+                              }}>Change</button>
+                              <button onClick={()=>setMergeConfirm(true)} style={{
+                                flex:1,height:40,borderRadius:8,border:`1.5px solid ${C.red}`,
+                                background:"transparent",fontFamily:"'DM Sans',sans-serif",fontSize:13,
+                                fontWeight:600,color:C.red,cursor:"pointer",
+                              }}>Merge &amp; Delete</button>
+                            </div>
+                          </div>
                         ) : (
                           <div style={{background:C.redLight,borderRadius:8,padding:12,textAlign:"center"}}>
                             <p style={{fontSize:12,color:C.red,fontWeight:600,marginBottom:8}}>
-                              This will permanently merge and delete this user. Are you sure?
+                              This will permanently merge {editingUser.count} assessment{editingUser.count!==1?"s":""} into {mergeTarget.name||mergeTarget.email} and delete {editingUser.name||editingUser.email}. Are you sure?
                             </p>
                             <div style={{display:"flex",gap:8}}>
                               <button onClick={()=>setMergeConfirm(false)} style={{
@@ -524,6 +601,48 @@ export default function AdminClient({
                                 background:C.red,fontSize:12,fontWeight:600,color:"white",cursor:"pointer",
                                 opacity:saving?0.6:1,
                               }}>{saving?"Merging...":"Confirm Merge"}</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <hr style={{border:"none",borderTop:`1px solid ${C.border}`,margin:"8px 0"}} />
+                      {/* Delete User */}
+                      <div>
+                        <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                          textTransform:"uppercase",color:C.red,marginBottom:8}}>Delete User</div>
+                        {!showDeleteConfirm ? (
+                          <button onClick={()=>setShowDeleteConfirm(true)} style={{
+                            width:"100%",height:40,borderRadius:8,border:`1.5px solid ${C.red}`,
+                            background:"transparent",fontFamily:"'DM Sans',sans-serif",fontSize:13,
+                            fontWeight:600,color:C.red,cursor:"pointer",
+                          }}>Delete User</button>
+                        ) : (
+                          <div style={{background:C.redLight,borderRadius:8,padding:14}}>
+                            <p style={{fontSize:12,color:C.red,fontWeight:600,marginBottom:4}}>
+                              Are you sure you want to delete {editingUser.name||"this user"} ({editingUser.email})?
+                            </p>
+                            <p style={{fontSize:11,color:C.red,lineHeight:1.5,marginBottom:10,opacity:0.8}}>
+                              This will permanently delete their profile and all {editingUser.count} assessment result{editingUser.count!==1?"s":""}. This cannot be undone.
+                            </p>
+                            <label style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.06em",
+                              textTransform:"uppercase",color:C.red,display:"block",marginBottom:4}}>Type email to confirm</label>
+                            <input value={deleteConfirmEmail} onChange={e=>setDeleteConfirmEmail(e.target.value)}
+                              placeholder={editingUser.email}
+                              style={{width:"100%",height:40,border:`1.5px solid ${C.red}40`,borderRadius:8,
+                                padding:"0 12px",fontFamily:"'DM Sans',sans-serif",fontSize:14,color:C.ink,background:C.white,outline:"none",marginBottom:10}} />
+                            <div style={{display:"flex",gap:8}}>
+                              <button onClick={()=>{setShowDeleteConfirm(false);setDeleteConfirmEmail("");}} style={{
+                                flex:1,height:36,borderRadius:6,border:`1px solid ${C.border}`,
+                                background:C.white,fontSize:12,color:C.inkMid,cursor:"pointer",
+                              }}>Cancel</button>
+                              <button onClick={handleDeleteUser}
+                                disabled={saving || deleteConfirmEmail.toLowerCase() !== editingUser.email.toLowerCase()}
+                                style={{
+                                  flex:1,height:36,borderRadius:6,border:"none",
+                                  background:C.red,fontSize:12,fontWeight:600,color:"white",cursor:"pointer",
+                                  opacity:(saving || deleteConfirmEmail.toLowerCase() !== editingUser.email.toLowerCase())?0.4:1,
+                                }}>{saving?"Deleting...":"Delete Permanently"}</button>
                             </div>
                           </div>
                         )}
