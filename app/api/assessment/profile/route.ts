@@ -17,23 +17,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ profile: null });
   }
 
-  // Get most recent assessment result
-  const { data: result } = await adminClient
-    .from("assessment_results")
+  // Get birth_year and gender from profiles (source of truth)
+  const { data: profile } = await adminClient
+    .from("profiles")
     .select("birth_year, gender")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
+    .eq("id", user.id)
     .single();
 
-  if (!result) {
+  if (!profile) {
     return NextResponse.json({ profile: null });
   }
 
   return NextResponse.json({
     profile: {
-      birth_year: result.birth_year,
-      gender: result.gender,
+      birth_year: profile.birth_year,
+      gender: profile.gender,
     },
   });
 }

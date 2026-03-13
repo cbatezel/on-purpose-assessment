@@ -28,14 +28,29 @@ export default async function AdminPage() {
     .order("created_at", { ascending: false });
 
   // ── Build user map from auth ────────────────────────────────────
-  const userMap: Record<string, { email: string; name: string }> = {};
+  const userMap: Record<string, { email: string; name: string; birth_year: number | null; gender: string | null }> = {};
   const { data: authUsers } = await adminClient.auth.admin.listUsers();
   if (authUsers?.users) {
     for (const u of authUsers.users) {
       userMap[u.id] = {
         email: u.email || "",
         name: u.user_metadata?.name || u.email?.split("@")[0] || "",
+        birth_year: null,
+        gender: null,
       };
+    }
+  }
+
+  // ── Fetch birth_year and gender from profiles (source of truth) ──
+  const { data: allProfiles } = await adminClient
+    .from("profiles")
+    .select("id, birth_year, gender");
+  if (allProfiles) {
+    for (const p of allProfiles) {
+      if (userMap[p.id]) {
+        userMap[p.id].birth_year = p.birth_year || null;
+        userMap[p.id].gender = p.gender || null;
+      }
     }
   }
 
@@ -123,6 +138,8 @@ export default async function AdminPage() {
     userId,
     name: userMap[userId]?.name || "",
     email: userMap[userId]?.email || "",
+    birth_year: userMap[userId]?.birth_year || null,
+    gender: userMap[userId]?.gender || null,
     ...summary,
   }));
 

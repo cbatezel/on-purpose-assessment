@@ -42,6 +42,7 @@ interface Stats {
 
 interface UserRow {
   userId: string; name: string; email: string;
+  birth_year: number | null; gender: string | null;
   count: number; latestSeason: string; latestProfile: string; latestDate: string;
 }
 
@@ -192,7 +193,7 @@ export default function AdminClient({
 
   const handleEditUser = (u: UserRow) => {
     setEditingUser(u);
-    setEditForm({ name: u.name, email: u.email, birth_year: "", gender: "", is_admin: false });
+    setEditForm({ name: u.name, email: u.email, birth_year: u.birth_year ? String(u.birth_year) : "", gender: u.gender || "", is_admin: false });
     setMergeSearch("");
     setMergeTarget(null);
     setMergeConfirm(false);

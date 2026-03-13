@@ -52,58 +52,22 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Upsert profiles table for is_admin field
-    if (is_admin !== undefined) {
+    // Upsert profiles table for is_admin, birth_year, and gender
+    const profileUpdate: Record<string, unknown> = { id: userId };
+    if (is_admin !== undefined) profileUpdate.is_admin = is_admin;
+    if (birth_year !== undefined) profileUpdate.birth_year = birth_year;
+    if (gender !== undefined) profileUpdate.gender = gender;
+
+    if (Object.keys(profileUpdate).length > 1) {
       const { error: profileError } = await adminClient
         .from("profiles")
-        .upsert({ id: userId, is_admin }, { onConflict: "id" });
+        .upsert(profileUpdate, { onConflict: "id" });
 
       if (profileError) {
         return NextResponse.json(
           {
             error: "Failed to update profile",
             details: profileError.message,
-          },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Update birth_year and gender on the most recent assessment_results record
-    if (birth_year !== undefined || gender !== undefined) {
-      // Find the most recent assessment_results record for this user
-      const { data: latestResult, error: fetchError } = await adminClient
-        .from("assessment_results")
-        .select("id")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (fetchError) {
-        return NextResponse.json(
-          {
-            error: "Failed to find assessment record",
-            details: fetchError.message,
-          },
-          { status: 500 }
-        );
-      }
-
-      const assessmentUpdate: Record<string, unknown> = {};
-      if (birth_year !== undefined) assessmentUpdate.birth_year = birth_year;
-      if (gender !== undefined) assessmentUpdate.gender = gender;
-
-      const { error: assessmentError } = await adminClient
-        .from("assessment_results")
-        .update(assessmentUpdate)
-        .eq("id", latestResult.id);
-
-      if (assessmentError) {
-        return NextResponse.json(
-          {
-            error: "Failed to update assessment record",
-            details: assessmentError.message,
           },
           { status: 500 }
         );

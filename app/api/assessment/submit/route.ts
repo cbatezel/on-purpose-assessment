@@ -124,7 +124,20 @@ export async function POST(request: Request) {
 
     console.log("[assessment/submit] Inserted assessment_results id:", assessmentResult.id);
 
-    // 3. Insert pdf_jobs row
+    // 3. Update profile with birth_year and gender (source of truth)
+    if (birth_year || gender) {
+      const profileUpdate: Record<string, unknown> = { id: userId };
+      if (birth_year) profileUpdate.birth_year = birth_year;
+      if (gender) profileUpdate.gender = gender;
+      const { error: profileError } = await adminClient
+        .from("profiles")
+        .upsert(profileUpdate, { onConflict: "id" });
+      if (profileError) {
+        console.error("[assessment/submit] profiles upsert error:", profileError.message);
+      }
+    }
+
+    // 5. Insert pdf_jobs row
     const { error: pdfError } = await adminClient
       .from("pdf_jobs")
       .insert({
@@ -138,14 +151,14 @@ export async function POST(request: Request) {
       console.log("[assessment/submit] Created pdf_job for assessment:", assessmentResult.id);
     }
 
-    // 4. Send magic link (fire and forget) — so user gets it after completing assessment
+    // 6. Send magic link (fire and forget) — so user gets it after completing assessment
     const origin = request.headers.get("origin") || "https://onpurposeassessment.com";
     adminClient.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${origin}/auth/callback` },
     }).catch(() => {});
 
-    // 5. Slack notification (fire and forget)
+    // 7. Slack notification (fire and forget)
     const slackUrl = process.env.SLACK_WEBHOOK_URL;
     if (slackUrl) {
       const qCounts = { season: 4, expertise: 8, passion: 7 };

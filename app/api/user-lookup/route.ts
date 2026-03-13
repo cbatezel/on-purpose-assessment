@@ -17,23 +17,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ found: false });
     }
 
-    // Get most recent assessment result for demographics
-    const { data: result } = await adminClient
-      .from("assessment_results")
-      .select("birth_year, gender, life_events")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
+    // Get birth_year and gender from profiles (source of truth)
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("birth_year, gender")
+      .eq("id", user.id)
       .single();
 
     const name = user.user_metadata?.name || "";
-    const hasFullDemographics = !!(result?.birth_year && result?.gender);
+    const hasFullDemographics = !!(profile?.birth_year && profile?.gender);
 
     return NextResponse.json({
       found: true,
       name,
-      birth_year: result?.birth_year || null,
-      gender: result?.gender || null,
+      birth_year: profile?.birth_year || null,
+      gender: profile?.gender || null,
       hasFullDemographics,
     });
   } catch (err) {
