@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
+import { adminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -33,6 +34,17 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      // Check if user has any assessment results
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { count } = await adminClient
+          .from("assessment_results")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id);
+        if (!count || count === 0) {
+          return NextResponse.redirect(`${origin}/`);
+        }
+      }
       return NextResponse.redirect(`${origin}/dashboard`);
     }
   }

@@ -52,6 +52,7 @@ export default function ResultsPageClient({
           mismatch={mismatch}
           showShare={true}
           animated={false}
+          isAuthenticated={true}
           seasonConfidence={seasonConfidence}
           confidenceNarrative={confidenceNarrative}
           divergenceNarrative={divergenceNarrative}

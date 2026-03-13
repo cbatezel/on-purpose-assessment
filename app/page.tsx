@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback, ReactNode, ChangeEvent } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense, ReactNode, ChangeEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import ResultsDisplay from "@/components/results-display";
@@ -465,7 +466,11 @@ function Card({children, style={}}: {children: ReactNode; style?: React.CSSPrope
 }
 
 // ── MAIN APP ───────────────────────────────────────────────────
-export default function App() {
+function AppInner() {
+  const searchParams = useSearchParams();
+  const isRetake = searchParams.get("retake") === "true";
+  const autoSkipDone = useRef(false);
+
   // step: 0=landing 1=name/email 2=context 3=life events 4=self-season 5=season confirmation 6=questions(expertise+passion) 7=processing 8=results
   const [step, setStep]     = useState(0);
   const [form, setForm]     = useState<{
@@ -489,6 +494,8 @@ export default function App() {
   const [hasProfile, setHasProfile] = useState(false);
   // Track whether auto-advance is locked (prevents double-fire)
   const [advancing, setAdvancing] = useState(false);
+  // Track if saving to server failed after retries
+  const [saveFailed, setSaveFailed] = useState(false);
 
   // Detect touch/mobile device (no hover capability)
   const [isMobile, setIsMobile] = useState(false);
@@ -513,6 +520,7 @@ export default function App() {
         name: f.name || user.user_metadata?.name || "",
       }));
       // Fetch most recent assessment to pre-fill demographics
+      let profileFound = false;
       try {
         const res = await fetch(`/api/assessment/profile?email=${encodeURIComponent(user.email || "")}`);
         if (res.ok) {
@@ -525,12 +533,20 @@ export default function App() {
               dobYear: f.dobYear || (p.birth_year ? String(p.birth_year) : ""),
               gender: f.gender || p.gender || "",
             }));
-            if (p.birth_year) setHasProfile(true);
+            if (p.birth_year) {
+              setHasProfile(true);
+              profileFound = true;
+            }
           }
         }
       } catch {}
+      // Auto-skip landing for authed users (retake=true still shows landing)
+      if (!autoSkipDone.current && !isRetake) {
+        autoSkipDone.current = true;
+        setStep(profileFound ? 3 : 2);
+      }
     });
-  },[]);
+  },[]); // eslint-disable-line
 
   // Derive presumed season from DOB
   const presumedSeason = form.dobYear ? getPresumedSeason(parseInt(form.dobYear)) : null;
@@ -635,42 +651,52 @@ export default function App() {
       else seasonCohort = "65+";
     }
 
-    // Fire API call in the background — don't block the UI
-    fetch("/api/assessment/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: form.email,
-        name: form.name,
-        birth_year: birthYear,
-        gender: form.gender || null,
-        life_events: form.lifeEvents,
-        feeling_words: form.selfSeason ? [form.selfSeason] : [],
-        season_answers: seasonAnswers,
-        expertise_answers: expertiseAnswers,
-        passion_answers: passionAnswers,
-        season_score: sum(seasonAnswers),
-        expertise_score: sum(expertiseAnswers),
-        passion_score: sum(passionAnswers),
-        bs_score: sum(bsAnswers),
-        season: finalSeason,
-        profile_name: profile.name,
-        season_cohort: seasonCohort,
-        season_confidence: confidence,
-        season_presumed: pSeason,
-        season_self_select: selfSelectSeason,
-        season_confirmation_score: parseFloat(confirmationAvg.toFixed(2)),
-      }),
-    })
-      .then(res => {
-        console.log("[assessment] Submit response status:", res.status);
-        return res.json();
-      })
-      .then(data => {
-        console.log("[assessment] Submit response data:", data);
-        if (data.assessment_id) setAssessmentId(data.assessment_id);
-      })
-      .catch(err => { console.error("[assessment] Submit fetch error:", err); });
+    // Fire API call in the background with retry — don't block the UI
+    const payload = {
+      email: form.email,
+      name: form.name,
+      birth_year: birthYear,
+      gender: form.gender || null,
+      life_events: form.lifeEvents,
+      feeling_words: form.selfSeason ? [form.selfSeason] : [],
+      season_answers: seasonAnswers,
+      expertise_answers: expertiseAnswers,
+      passion_answers: passionAnswers,
+      season_score: sum(seasonAnswers),
+      expertise_score: sum(expertiseAnswers),
+      passion_score: sum(passionAnswers),
+      bs_score: sum(bsAnswers),
+      season: finalSeason,
+      profile_name: profile.name,
+      season_cohort: seasonCohort,
+      season_confidence: confidence,
+      season_presumed: pSeason,
+      season_self_select: selfSelectSeason,
+      season_confirmation_score: parseFloat(confirmationAvg.toFixed(2)),
+    };
+    (async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await fetch("/api/assessment/submit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            console.log("[assessment] Submit succeeded on attempt", attempt + 1);
+            if (data.assessment_id) setAssessmentId(data.assessment_id);
+            return;
+          }
+          console.warn("[assessment] Submit attempt", attempt + 1, "status:", res.status);
+        } catch (err) {
+          console.warn("[assessment] Submit attempt", attempt + 1, "error:", err);
+        }
+        if (attempt < 2) await new Promise(r => setTimeout(r, 1000));
+      }
+      console.error("[assessment] All 3 submit attempts failed");
+      setSaveFailed(true);
+    })();
 
     const t = setTimeout(()=>setStep(8),2600);
     return ()=>clearTimeout(t);
@@ -1312,8 +1338,11 @@ export default function App() {
               setScIndex(0);
               setResult(null);
               setAssessmentId(null);
+              setSaveFailed(false);
             }}
             animated={true}
+            isAuthenticated={authed}
+            saveFailed={saveFailed}
             seasonConfidence={result.seasonConfidence}
             confidenceNarrative={getConfidenceNarrative(result.behavioral, result.seasonConfidence)}
             divergenceNarrative={getDivergenceNarrative(result.eStage, result.pStage, result.lifeEventCount)}
@@ -1323,5 +1352,13 @@ export default function App() {
 
       </div>
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <Suspense fallback={<div style={{minHeight:"100vh",background:"#F0EDE8"}}/>}>
+      <AppInner/>
+    </Suspense>
   );
 }

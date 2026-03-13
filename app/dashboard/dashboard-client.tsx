@@ -206,7 +206,7 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
             </div>
 
             <div style={{ marginBottom: 32 }}>
-              <Link href="/" style={{
+              <Link href="/?retake=true" style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 width: "100%", height: 50, borderRadius: 10, border: "none",
                 fontFamily: "'DM Sans',sans-serif", fontSize: 15, fontWeight: 600,
