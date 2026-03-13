@@ -1315,6 +1315,9 @@ function AppInner() {
             animated={true}
             isAuthenticated={authed}
             saveFailed={saveFailed}
+            userName={form.name}
+            userEmail={form.email}
+            userGender={form.gender}
             seasonConfidence={result.seasonConfidence}
             confidenceNarrative={getConfidenceNarrative(result.behavioral, result.seasonConfidence)}
             divergenceNarrative={getDivergenceNarrative(result.eStage, result.pStage, result.lifeEventCount)}

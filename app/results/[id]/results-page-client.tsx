@@ -23,11 +23,15 @@ interface Props {
   confidenceNarrative?: string;
   divergenceNarrative?: string | null;
   lifeEventsNarrative?: string | null;
+  userName?: string;
+  userEmail?: string;
+  userGender?: string;
 }
 
 export default function ResultsPageClient({
   behavioral, profile, gap, mismatch,
   seasonConfidence, confidenceNarrative, divergenceNarrative, lifeEventsNarrative,
+  userName, userEmail, userGender,
 }: Props) {
   return (
     <>
@@ -57,6 +61,9 @@ export default function ResultsPageClient({
           confidenceNarrative={confidenceNarrative}
           divergenceNarrative={divergenceNarrative}
           lifeEventsNarrative={lifeEventsNarrative}
+          userName={userName}
+          userEmail={userEmail}
+          userGender={userGender}
         />
       </div>
     </>

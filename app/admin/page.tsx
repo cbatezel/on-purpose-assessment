@@ -150,6 +150,12 @@ export default async function AdminPage() {
     ...summary,
   }));
 
+  // ── Fetch cohort interest submissions ─────────────────────────
+  const { data: cohortInterest } = await adminClient
+    .from("cohort_interest")
+    .select("*")
+    .order("created_at", { ascending: false });
+
   const stats = {
     totalUsers,
     totalAssessments: totalAssessments || 0,
@@ -167,6 +173,7 @@ export default async function AdminPage() {
       stats={stats}
       users={users}
       recentAssessments={recentWithUsers}
+      cohortInterest={cohortInterest || []}
     />
   );
 }

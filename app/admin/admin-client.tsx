@@ -38,6 +38,17 @@ interface UserRow {
   latestDate: string;
 }
 
+interface CohortInterest {
+  id: string;
+  created_at: string;
+  name: string;
+  email: string;
+  message: string | null;
+  season: string | null;
+  profile_name: string | null;
+  user_id: string | null;
+}
+
 interface RecentAssessment {
   id: string;
   created_at: string;
@@ -121,11 +132,12 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 }
 
 export default function AdminClient({
-  stats, users, recentAssessments,
+  stats, users, recentAssessments, cohortInterest,
 }: {
   stats: Stats;
   users: UserRow[];
   recentAssessments: RecentAssessment[];
+  cohortInterest: CohortInterest[];
 }) {
   const [search, setSearch] = useState("");
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
@@ -327,6 +339,60 @@ export default function AdminClient({
                 </Link>
               ))}
             </div>
+          </div>
+
+          {/* ── Cohort Interest ──────────────────────────────────── */}
+          <div style={{ marginTop: 48 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.1em",
+                textTransform: "uppercase", color: C.sage }}>
+                Cohort Interest
+              </div>
+              <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight }}>
+                ({cohortInterest.length})
+              </span>
+            </div>
+
+            {cohortInterest.length === 0 ? (
+              <p style={{ fontSize: 14, color: C.inkLight, textAlign: "center", padding: "20px 0" }}>
+                No cohort interest submissions yet.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {cohortInterest.map(ci => (
+                  <div key={ci.id} style={{
+                    background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
+                    padding: "14px 18px",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 4 }}>
+                      <div>
+                        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14,
+                          fontWeight: 600, color: C.ink }}>{ci.name}</span>
+                        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11,
+                          color: C.inkLight, marginLeft: 10 }}>{ci.email}</span>
+                      </div>
+                      <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11,
+                        color: C.inkLight, flexShrink: 0 }}>
+                        {formatDateTime(ci.created_at)}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: ci.message ? 8 : 0 }}>
+                      {ci.season && <SeasonBadge season={ci.season} />}
+                      {ci.profile_name && (
+                        <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 13,
+                          fontWeight: 600, color: C.ink }}>{ci.profile_name}</span>
+                      )}
+                    </div>
+                    {ci.message && (
+                      <p style={{ fontSize: 13, color: C.inkMid, lineHeight: 1.5, margin: 0,
+                        fontStyle: "italic" }}>
+                        &ldquo;{ci.message}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={{ textAlign: "center", padding: "40px 0 4px", fontSize: 11,

@@ -21,6 +21,9 @@ export interface ResultsDisplayProps {
   gap: string | null;
   mismatch: string | null;
   email?: string;
+  userName?: string;
+  userEmail?: string;
+  userGender?: string;
   showShare?: boolean;
   showStartOver?: boolean;
   onStartOver?: () => void;
@@ -104,12 +107,17 @@ function CardBtn({children,onClick}: {children: React.ReactNode; onClick: () => 
 
 export default function ResultsDisplay({
   behavioral, profile, gap, mismatch,
+  userName, userEmail, userGender,
   showShare = false, showStartOver = false, onStartOver, animated = true,
   isAuthenticated = false, saveFailed = false,
   seasonConfidence, confidenceNarrative, divergenceNarrative, lifeEventsNarrative,
 }: ResultsDisplayProps) {
   const [copied, setCopied] = useState(false);
   const [copiedImg, setCopiedImg] = useState(false);
+  const [showCohortModal, setShowCohortModal] = useState(false);
+  const [cohortForm, setCohortForm] = useState({ name: userName || "", email: userEmail || "", message: "" });
+  const [cohortSubmitting, setCohortSubmitting] = useState(false);
+  const [cohortSubmitted, setCohortSubmitted] = useState(false);
 
   // Staged reveal: 0=hidden, 1=season, 2=profile name, 3=mirror line, 4=description, 5=question, 6=CTAs+share
   const [stage, setStage] = useState(animated ? 0 : 6);
@@ -483,24 +491,56 @@ export default function ResultsDisplay({
             The On Purpose Assessment is a starting point. If something in your results landed — or if something felt unresolved — there are a few ways to keep going.
           </p>
           <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:14}}>
-            {[
-              {label:"Cohort",title:"Coaching Cohort",    body:"Work through purpose in a small group with others in a similar season. Built for people ready to go deeper together."},
-              {label:"Summit",title:"Spring Summit",  body:"A focused experience for people ready to go deep on what\u2019s next. Two days. Small group. Real clarity."},
-              {label:"Go Deeper",title:"On Purpose by Beau Johnson", body:"Most ways of finding purpose don\u2019t work. If you\u2019ve wrestled with wanting to live big without losing contentment, this book is for you. Clarity about our lives is possible. Purpose is within reach in every industry and every stage of life. This book shows you how.", href:"https://www.amazon.com/Purpose-Beau-Johnson/dp/B0FRMXCDWS", btnText:"Get the Book"},
-            ].map(cta=>(
-              <div key={cta.label} style={{background:C.white,border:`1px solid ${C.border}`,
+
+            {/* Coaching Cohort — opens modal */}
+            <div style={{background:C.white,border:`1px solid ${C.border}`,
+              borderRadius:12,padding:22,transition:"box-shadow 0.2s"}}
+              onMouseEnter={e=>e.currentTarget.style.boxShadow="0 2px 16px rgba(28,27,25,0.08)"}
+              onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}
+            >
+              <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                textTransform:"uppercase",color:C.red,marginBottom:6}}>Cohort</div>
+              <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,
+                fontWeight:600,color:C.ink,marginBottom:8}}>Coaching Cohort</div>
+              <p style={{fontSize:14,lineHeight:1.6,color:C.inkMid,marginBottom:16}}>
+                Work through purpose in a small group with others in a similar season. Built for people ready to go deeper together.
+              </p>
+              <CtaButton onClick={()=>setShowCohortModal(true)}>I&apos;m Interested &rarr;</CtaButton>
+            </div>
+
+            {/* Spring Summit — only for Male / Prefer not to say */}
+            {userGender !== "Female" && (
+              <div style={{background:C.white,border:`1px solid ${C.border}`,
                 borderRadius:12,padding:22,transition:"box-shadow 0.2s"}}
                 onMouseEnter={e=>e.currentTarget.style.boxShadow="0 2px 16px rgba(28,27,25,0.08)"}
                 onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}
               >
                 <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
-                  textTransform:"uppercase",color:C.red,marginBottom:6}}>{cta.label}</div>
+                  textTransform:"uppercase",color:C.red,marginBottom:6}}>Summit</div>
                 <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,
-                  fontWeight:600,color:C.ink,marginBottom:8}}>{cta.title}</div>
-                <p style={{fontSize:14,lineHeight:1.6,color:C.inkMid,marginBottom:16}}>{cta.body}</p>
-                <CtaButton href={cta.href}>{cta.href ? cta.btnText : <>Learn More &rarr;</>}</CtaButton>
+                  fontWeight:600,color:C.ink,marginBottom:8}}>Spring Summit</div>
+                <p style={{fontSize:14,lineHeight:1.6,color:C.inkMid,marginBottom:16}}>
+                  A focused experience for people ready to go deep on what&apos;s next. Two days. Small group. Real clarity.
+                </p>
+                <CtaButton href="https://thirdspacepublishing.com">Learn More &rarr;</CtaButton>
               </div>
-            ))}
+            )}
+
+            {/* Go Deeper — book */}
+            <div style={{background:C.white,border:`1px solid ${C.border}`,
+              borderRadius:12,padding:22,transition:"box-shadow 0.2s"}}
+              onMouseEnter={e=>e.currentTarget.style.boxShadow="0 2px 16px rgba(28,27,25,0.08)"}
+              onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}
+            >
+              <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                textTransform:"uppercase",color:C.red,marginBottom:6}}>Go Deeper</div>
+              <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,
+                fontWeight:600,color:C.ink,marginBottom:8}}>On Purpose by Beau Johnson</div>
+              <p style={{fontSize:14,lineHeight:1.6,color:C.inkMid,marginBottom:16}}>
+                Most ways of finding purpose don&apos;t work. If you&apos;ve wrestled with wanting to live big without losing contentment, this book is for you. Clarity about our lives is possible. Purpose is within reach in every industry and every stage of life. This book shows you how.
+              </p>
+              <CtaButton href="https://www.amazon.com/Purpose-Beau-Johnson/dp/B0FRMXCDWS">Get the Book</CtaButton>
+            </div>
           </div>
           <p style={{textAlign:"center",fontSize:12,color:C.inkLight}}>
             Not sure which is right for you?{" "}
@@ -511,6 +551,136 @@ export default function ResultsDisplay({
             </a>
           </p>
         </div>
+
+        {/* ── Cohort Interest Modal ── */}
+        {showCohortModal && (
+          <div style={{
+            position:"fixed",top:0,left:0,right:0,bottom:0,
+            background:"rgba(28,27,25,0.5)",zIndex:1000,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            padding:20,
+          }} onClick={e=>{if(e.target===e.currentTarget)setShowCohortModal(false)}}>
+            <div style={{
+              background:C.white,borderRadius:16,padding:"32px 28px",
+              maxWidth:460,width:"100%",boxShadow:"0 8px 40px rgba(28,27,25,0.18)",
+              maxHeight:"90vh",overflowY:"auto",
+            }}>
+              {cohortSubmitted ? (
+                <div style={{textAlign:"center",padding:"20px 0"}}>
+                  <div style={{width:48,height:48,borderRadius:"50%",background:C.sageLight,
+                    margin:"0 auto 16px",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                      <path d="M6 11l4 4 6-8" stroke={C.sage} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <h3 style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:22,
+                    fontWeight:600,color:C.ink,marginBottom:8}}>
+                    You&apos;re on the list<span style={{color:C.red}}>.</span>
+                  </h3>
+                  <p style={{fontSize:14,color:C.inkMid,lineHeight:1.6,marginBottom:20}}>
+                    We&apos;ll be in touch with details about the next coaching cohort.
+                  </p>
+                  <button onClick={()=>{setShowCohortModal(false);}} style={{
+                    fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:500,
+                    color:C.inkLight,background:"none",border:"none",cursor:"pointer",
+                  }}>Close</button>
+                </div>
+              ) : (
+                <>
+                  <h3 style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:22,
+                    fontWeight:600,color:C.ink,marginBottom:4}}>
+                    Coaching Cohort Interest<span style={{color:C.red}}>.</span>
+                  </h3>
+                  <p style={{fontSize:14,color:C.inkMid,lineHeight:1.6,marginBottom:20}}>
+                    Let us know you&apos;re interested and we&apos;ll reach out with details.
+                  </p>
+                  <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                    <div>
+                      <label style={{fontFamily:"'DM Mono',monospace",fontSize:10,
+                        letterSpacing:"0.08em",textTransform:"uppercase",color:C.inkLight,
+                        display:"block",marginBottom:5}}>Name</label>
+                      <input value={cohortForm.name}
+                        onChange={e=>setCohortForm(f=>({...f,name:e.target.value}))}
+                        style={{
+                          width:"100%",height:42,border:`1.5px solid ${C.border}`,
+                          borderRadius:9,padding:"0 13px",fontFamily:"'DM Sans',sans-serif",
+                          fontSize:14,color:C.ink,background:C.bg,outline:"none",
+                        }}
+                        onFocus={e=>e.target.style.borderColor=C.red}
+                        onBlur={e=>e.target.style.borderColor=C.border}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontFamily:"'DM Mono',monospace",fontSize:10,
+                        letterSpacing:"0.08em",textTransform:"uppercase",color:C.inkLight,
+                        display:"block",marginBottom:5}}>Email</label>
+                      <input value={cohortForm.email} type="email"
+                        onChange={e=>setCohortForm(f=>({...f,email:e.target.value}))}
+                        style={{
+                          width:"100%",height:42,border:`1.5px solid ${C.border}`,
+                          borderRadius:9,padding:"0 13px",fontFamily:"'DM Sans',sans-serif",
+                          fontSize:14,color:C.ink,background:C.bg,outline:"none",
+                        }}
+                        onFocus={e=>e.target.style.borderColor=C.red}
+                        onBlur={e=>e.target.style.borderColor=C.border}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontFamily:"'DM Mono',monospace",fontSize:10,
+                        letterSpacing:"0.08em",textTransform:"uppercase",color:C.inkLight,
+                        display:"block",marginBottom:5}}>Message (optional)</label>
+                      <textarea value={cohortForm.message}
+                        onChange={e=>setCohortForm(f=>({...f,message:e.target.value}))}
+                        rows={3}
+                        style={{
+                          width:"100%",border:`1.5px solid ${C.border}`,
+                          borderRadius:9,padding:"10px 13px",fontFamily:"'DM Sans',sans-serif",
+                          fontSize:14,color:C.ink,background:C.bg,outline:"none",resize:"vertical",
+                        }}
+                        onFocus={e=>e.target.style.borderColor=C.red}
+                        onBlur={e=>e.target.style.borderColor=C.border}
+                      />
+                    </div>
+                    <div style={{display:"flex",gap:10,marginTop:4}}>
+                      <button onClick={()=>setShowCohortModal(false)} style={{
+                        flex:1,height:44,borderRadius:9,border:`1.5px solid ${C.border}`,
+                        background:"transparent",fontFamily:"'DM Sans',sans-serif",
+                        fontSize:14,fontWeight:500,color:C.inkMid,cursor:"pointer",
+                      }}>Cancel</button>
+                      <button disabled={cohortSubmitting || !cohortForm.name.trim() || !cohortForm.email.trim()}
+                        onClick={async()=>{
+                          setCohortSubmitting(true);
+                          try {
+                            await fetch("/api/cohort-interest",{
+                              method:"POST",
+                              headers:{"Content-Type":"application/json"},
+                              body:JSON.stringify({
+                                name:cohortForm.name.trim(),
+                                email:cohortForm.email.trim(),
+                                message:cohortForm.message.trim() || null,
+                                season:behavioral,
+                                profile_name:profile.name,
+                              }),
+                            });
+                            setCohortSubmitted(true);
+                          } catch { /* ignore */ }
+                          setCohortSubmitting(false);
+                        }}
+                        style={{
+                          flex:1,height:44,borderRadius:9,border:"none",
+                          background:(!cohortForm.name.trim()||!cohortForm.email.trim()) ? C.border : C.red,
+                          fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,
+                          color:"white",cursor:(!cohortForm.name.trim()||!cohortForm.email.trim()) ? "default" : "pointer",
+                          opacity:cohortSubmitting ? 0.6 : 1,transition:"background 0.15s",
+                        }}
+                      >{cohortSubmitting ? "Sending..." : "Submit"}</button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Save failed note */}
         {saveFailed && (

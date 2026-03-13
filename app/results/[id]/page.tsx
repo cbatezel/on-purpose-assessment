@@ -82,6 +82,13 @@ export default async function ResultsPage({ params }: Props) {
     ? "You're carrying a lot of transitions right now. That can make your season feel less clear — not because you're in the wrong one, but because this one is asking a lot of you."
     : null;
 
+  // Get user name/email for CTA pre-fill
+  const { data: authUsers } = await adminClient.auth.admin.listUsers();
+  const authUser = authUsers?.users?.find(u => u.id === user.id);
+  const userName = authUser?.user_metadata?.name || authUser?.email?.split("@")[0] || "";
+  const userEmail = authUser?.email || "";
+  const userGender = result.gender || "";
+
   return (
     <ResultsPageClient
       behavioral={result.season}
@@ -91,6 +98,9 @@ export default async function ResultsPage({ params }: Props) {
       seasonConfidence={result.season_confidence || undefined}
       confidenceNarrative={confidenceNarrative}
       lifeEventsNarrative={lifeEventsNarrative}
+      userName={userName}
+      userEmail={userEmail}
+      userGender={userGender}
     />
   );
 }
