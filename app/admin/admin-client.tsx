@@ -38,6 +38,7 @@ interface Stats {
   avgPassion: string;
   avgBs: string;
   avgConfirmation: string;
+  completionRate: number;
 }
 
 interface UserRow {
@@ -57,6 +58,12 @@ interface CohortInterest {
   id: string; created_at: string; name: string; email: string;
   message: string | null; season: string | null; profile_name: string | null; user_id: string | null;
 }
+
+interface IncompleteSession {
+  email: string; furthest_step: string; last_active_at: string; device_type: string;
+}
+
+interface FunnelStep { label: string; count: number }
 
 interface ChartPoint { date: string; count: number }
 interface PiePoint { name: string; value: number }
@@ -121,15 +128,20 @@ function ConfidenceBadge({ confidence }: { confidence: string | null }) {
 type Tab = "overview" | "users" | "assessments" | "cohort";
 type TimeRange = "7d" | "30d" | "90d" | "all";
 
+const DEVICE_COLORS: Record<string, string> = { mobile: "#8B2635", desktop: "#2D3A5E", tablet: "#C4956A", unknown: "#9A9590" };
+
 export default function AdminClient({
   stats, users, assessments, cohortInterest,
   dailyData, seasonData, confidenceData, topProfiles,
   ageData, genderData, lifeEventData, allDailyCounts, cohortUserIds,
+  avgTimeToComplete, deviceData, locationData, referralData, funnelData, incompleteSessions,
 }: {
   stats: Stats; users: UserRow[]; assessments: Assessment[]; cohortInterest: CohortInterest[];
   dailyData: ChartPoint[]; seasonData: PiePoint[]; confidenceData: PiePoint[]; topProfiles: BarPoint[];
   ageData: BarPoint[]; genderData: PiePoint[]; lifeEventData: BarPoint[];
   allDailyCounts: Record<string, number>; cohortUserIds: string[];
+  avgTimeToComplete: number | null; deviceData: PiePoint[]; locationData: BarPoint[];
+  referralData: BarPoint[]; funnelData: FunnelStep[]; incompleteSessions: IncompleteSession[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
@@ -317,153 +329,9 @@ export default function AdminClient({
           {/* ══ OVERVIEW TAB ══════════════════════════════════════ */}
           {tab === "overview" && (
             <>
-              {/* Hero numbers */}
-              <div style={{display:"flex",gap:48,marginBottom:40,paddingLeft:4}}>
-                <div>
-                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
-                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>Total Assessments</div>
-                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:56,
-                    fontWeight:700,color:C.ink,lineHeight:1}}>{stats.totalAssessments}</div>
-                </div>
-                <div>
-                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
-                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>This Week</div>
-                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:56,
-                    fontWeight:700,color:C.red,lineHeight:1}}>{stats.assessmentsThisWeek}</div>
-                </div>
-              </div>
-
-              {/* Live Activity Feed */}
-              <div style={{marginBottom:40}}>
-                <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
-                  textTransform:"uppercase",color:C.sage,marginBottom:14}}>Recent Activity</div>
-                <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                  {feedItems.map(a => {
-                    const accent = seasonColors[a.season] || C.sage;
-                    const hasCohort = cohortUserIdSet.has(a.user_id);
-                    return (
-                      <Link key={a.id} href={`/admin/assessment/${a.id}`} style={{textDecoration:"none"}}>
-                        <div style={{
-                          display:"flex",alignItems:"center",gap:12,
-                          padding:"11px 16px",borderRadius:8,
-                          cursor:"pointer",transition:"background 0.12s",
-                        }}
-                          onMouseEnter={e=>e.currentTarget.style.background=C.white}
-                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                        >
-                          {/* Season dot */}
-                          <div style={{width:8,height:8,borderRadius:"50%",background:accent,flexShrink:0}} />
-                          {/* Name */}
-                          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,
-                            color:C.ink,minWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                            {a.name||"—"}
-                          </span>
-                          {/* Season badge */}
-                          <SeasonBadge season={a.season} />
-                          {/* Profile */}
-                          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:C.inkMid,
-                            flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                            {a.profile_name}
-                          </span>
-                          {/* Cohort fire badge */}
-                          {hasCohort && (
-                            <span title="Submitted cohort interest" style={{fontSize:14,flexShrink:0}}>🔥</span>
-                          )}
-                          {/* Time ago */}
-                          <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight,
-                            flexShrink:0,textAlign:"right",minWidth:70}}>
-                            {timeAgo(a.created_at)}
-                          </span>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Insights Row: Season donut + Demographics */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:48}}>
-                {/* Season distribution */}
-                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
-                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
-                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Season Distribution</div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie data={seasonData} dataKey="value" cx="50%" cy="50%" outerRadius={70} innerRadius={40}
-                        paddingAngle={2} label={({name,percent}: {name?:string;percent?:number})=>`${name||""} ${((percent||0)*100).toFixed(0)}%`}
-                        style={{fontSize:10,fontFamily:"'DM Mono',monospace"}}>
-                        {seasonData.map((entry, i) => (
-                          <Cell key={i} fill={seasonColors[entry.name] || PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{fontFamily:"'DM Sans',sans-serif",fontSize:12,borderRadius:8}} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Demographics */}
-                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
-                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
-                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Demographics</div>
-
-                  {/* Age distribution bars */}
-                  {ageData.length > 0 && (
-                    <div style={{marginBottom:18}}>
-                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.06em",
-                        textTransform:"uppercase",color:C.inkLight,marginBottom:8}}>Age</div>
-                      {(() => {
-                        const maxCount = Math.max(...ageData.map(d => d.count));
-                        return ageData.map(d => (
-                          <div key={d.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
-                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkMid,
-                              width:28,textAlign:"right",flexShrink:0}}>{d.name}</span>
-                            <div style={{flex:1,height:14,borderRadius:3,background:`${C.border}60`,overflow:"hidden"}}>
-                              <div style={{
-                                height:"100%",borderRadius:3,
-                                width:`${(d.count / maxCount) * 100}%`,
-                                background:`linear-gradient(90deg, ${C.sage}, ${C.sage}cc)`,
-                                transition:"width 0.4s ease-out",
-                              }} />
-                            </div>
-                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight,
-                              width:24,flexShrink:0}}>{d.count}</span>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  )}
-
-                  {/* Gender breakdown */}
-                  {genderData.length > 0 && (
-                    <div>
-                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.06em",
-                        textTransform:"uppercase",color:C.inkLight,marginBottom:8}}>Gender</div>
-                      <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-                        {genderData.map(g => (
-                          <div key={g.name} style={{display:"flex",alignItems:"center",gap:6}}>
-                            <div style={{width:8,height:8,borderRadius:"50%",
-                              background:GENDER_COLORS[g.name] || C.inkLight}} />
-                            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.inkMid}}>
-                              {g.name}
-                            </span>
-                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight}}>
-                              {g.value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Operator Data (below the fold) ───────────────── */}
-              <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
-                textTransform:"uppercase",color:C.inkLight,marginBottom:16}}>Operator Data</div>
-
-              {/* Volume trend with time range toggle */}
+              {/* Assessment Volume chart — TOP */}
               <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,
-                padding:"20px 20px 12px",marginBottom:20}}>
+                padding:"20px 20px 12px",marginBottom:28}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                   <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
                     textTransform:"uppercase",color:C.inkLight}}>Assessment Volume</div>
@@ -491,9 +359,269 @@ export default function AdminClient({
                 </ResponsiveContainer>
               </div>
 
+              {/* Hero numbers */}
+              <div style={{display:"flex",gap:48,marginBottom:40,paddingLeft:4}}>
+                <div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>Total Assessments</div>
+                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:56,
+                    fontWeight:700,color:C.ink,lineHeight:1}}>{stats.totalAssessments}</div>
+                </div>
+                <div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>This Week</div>
+                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:56,
+                    fontWeight:700,color:C.red,lineHeight:1}}>{stats.assessmentsThisWeek}</div>
+                </div>
+                <div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>Completion Rate</div>
+                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:56,
+                    fontWeight:700,color:C.sage,lineHeight:1}}>{stats.completionRate}<span style={{fontSize:28,fontWeight:400}}>%</span></div>
+                </div>
+              </div>
+
+              {/* Avg Time + Drop-off Funnel row */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:20,marginBottom:28}}>
+                {/* Avg time to complete */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Avg Time to Complete</div>
+                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:36,fontWeight:700,color:C.ink,lineHeight:1.2}}>
+                    {avgTimeToComplete ? (
+                      <>{Math.floor(avgTimeToComplete / 60)}<span style={{fontSize:16,fontWeight:400,color:C.inkMid}}> min </span>{avgTimeToComplete % 60}<span style={{fontSize:16,fontWeight:400,color:C.inkMid}}> sec</span></>
+                    ) : "—"}
+                  </div>
+                </div>
+
+                {/* Drop-off funnel */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:14}}>Drop-off Funnel</div>
+                  {funnelData.length > 0 && (() => {
+                    const maxCount = funnelData[0].count || 1;
+                    return funnelData.map((f, i) => {
+                      const dropoff = i > 0 && funnelData[i-1].count > 0
+                        ? Math.round(((funnelData[i-1].count - f.count) / funnelData[i-1].count) * 100)
+                        : 0;
+                      return (
+                        <div key={f.label} style={{marginBottom:8}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.ink}}>{f.label}</span>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              {i > 0 && dropoff > 0 && (
+                                <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.red}}>-{dropoff}%</span>
+                              )}
+                              <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight,width:32,textAlign:"right"}}>{f.count}</span>
+                            </div>
+                          </div>
+                          <div style={{height:8,borderRadius:4,background:`${C.border}60`,overflow:"hidden"}}>
+                            <div style={{
+                              height:"100%",borderRadius:4,
+                              width:`${(f.count / maxCount) * 100}%`,
+                              background: i === funnelData.length - 1 ? C.sage : `${C.sage}99`,
+                              transition:"width 0.4s ease-out",
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              {/* Device + Location + Referrals row */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20,marginBottom:28}}>
+                {/* Device breakdown */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Device Breakdown</div>
+                  {deviceData.length > 0 ? (
+                    <>
+                      <ResponsiveContainer width="100%" height={140}>
+                        <PieChart>
+                          <Pie data={deviceData} dataKey="value" cx="50%" cy="50%" outerRadius={55} innerRadius={30}
+                            paddingAngle={2}
+                            style={{fontSize:10,fontFamily:"'DM Mono',monospace"}}>
+                            {deviceData.map((entry, i) => (
+                              <Cell key={i} fill={DEVICE_COLORS[entry.name] || PIE_COLORS[i % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={{fontFamily:"'DM Sans',sans-serif",fontSize:12,borderRadius:8}} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginTop:4}}>
+                        {deviceData.map(d => {
+                          const total = deviceData.reduce((a, b) => a + b.value, 0);
+                          return (
+                            <div key={d.name} style={{display:"flex",alignItems:"center",gap:5}}>
+                              <div style={{width:7,height:7,borderRadius:"50%",background:DEVICE_COLORS[d.name] || C.inkLight}} />
+                              <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkMid,textTransform:"capitalize"}}>
+                                {d.name} {total > 0 ? Math.round((d.value / total) * 100) : 0}%
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : <p style={{fontSize:12,color:C.inkLight}}>No session data yet.</p>}
+                </div>
+
+                {/* Location */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Location</div>
+                  {locationData.length > 0 ? (() => {
+                    const maxCount = Math.max(...locationData.map(d => d.count));
+                    return locationData.map(d => (
+                      <div key={d.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkMid,
+                          width:70,textAlign:"right",flexShrink:0}}>{d.name}</span>
+                        <div style={{flex:1,height:12,borderRadius:3,background:`${C.border}60`,overflow:"hidden"}}>
+                          <div style={{
+                            height:"100%",borderRadius:3,
+                            width:`${(d.count / maxCount) * 100}%`,
+                            background:seasonColors.Multiplication,
+                            transition:"width 0.4s ease-out",
+                          }} />
+                        </div>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight,
+                          width:24,flexShrink:0}}>{d.count}</span>
+                      </div>
+                    ));
+                  })() : <p style={{fontSize:12,color:C.inkLight}}>No session data yet.</p>}
+                </div>
+
+                {/* Referral sources */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Referral Sources</div>
+                  {referralData.length > 0 ? (
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {referralData.map(r => (
+                        <div key={r.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.ink,
+                            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,marginRight:8}}>{r.name}</span>
+                          <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight,flexShrink:0}}>{r.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p style={{fontSize:12,color:C.inkLight}}>No session data yet.</p>}
+                </div>
+              </div>
+
+              {/* Live Activity Feed */}
+              <div style={{marginBottom:40}}>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                  textTransform:"uppercase",color:C.sage,marginBottom:14}}>Recent Activity</div>
+                <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  {feedItems.map(a => {
+                    const accent = seasonColors[a.season] || C.sage;
+                    const hasCohort = cohortUserIdSet.has(a.user_id);
+                    return (
+                      <Link key={a.id} href={`/admin/assessment/${a.id}`} style={{textDecoration:"none"}}>
+                        <div style={{
+                          display:"flex",alignItems:"center",gap:12,
+                          padding:"11px 16px",borderRadius:8,
+                          cursor:"pointer",transition:"background 0.12s",
+                        }}
+                          onMouseEnter={e=>e.currentTarget.style.background=C.white}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                        >
+                          <div style={{width:8,height:8,borderRadius:"50%",background:accent,flexShrink:0}} />
+                          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,
+                            color:C.ink,minWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {a.name||"—"}
+                          </span>
+                          <SeasonBadge season={a.season} />
+                          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:C.inkMid,
+                            flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {a.profile_name}
+                          </span>
+                          {hasCohort && (
+                            <span title="Submitted cohort interest" style={{fontSize:14,flexShrink:0}}>🔥</span>
+                          )}
+                          <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight,
+                            flexShrink:0,textAlign:"right",minWidth:70}}>
+                            {timeAgo(a.created_at)}
+                          </span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Insights Row: Season donut + Demographics */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:28}}>
+                {/* Season distribution */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Season Distribution</div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie data={seasonData} dataKey="value" cx="50%" cy="50%" outerRadius={70} innerRadius={40}
+                        paddingAngle={2} label={({name,percent}: {name?:string;percent?:number})=>`${name||""} ${((percent||0)*100).toFixed(0)}%`}
+                        style={{fontSize:10,fontFamily:"'DM Mono',monospace"}}>
+                        {seasonData.map((entry, i) => (
+                          <Cell key={i} fill={seasonColors[entry.name] || PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{fontFamily:"'DM Sans',sans-serif",fontSize:12,borderRadius:8}} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Demographics */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Demographics</div>
+                  {ageData.length > 0 && (
+                    <div style={{marginBottom:18}}>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.06em",
+                        textTransform:"uppercase",color:C.inkLight,marginBottom:8}}>Age</div>
+                      {(() => {
+                        const maxCount = Math.max(...ageData.map(d => d.count));
+                        return ageData.map(d => (
+                          <div key={d.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkMid,
+                              width:28,textAlign:"right",flexShrink:0}}>{d.name}</span>
+                            <div style={{flex:1,height:14,borderRadius:3,background:`${C.border}60`,overflow:"hidden"}}>
+                              <div style={{
+                                height:"100%",borderRadius:3,
+                                width:`${(d.count / maxCount) * 100}%`,
+                                background:`linear-gradient(90deg, ${C.sage}, ${C.sage}cc)`,
+                                transition:"width 0.4s ease-out",
+                              }} />
+                            </div>
+                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight,
+                              width:24,flexShrink:0}}>{d.count}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                  {genderData.length > 0 && (
+                    <div>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.06em",
+                        textTransform:"uppercase",color:C.inkLight,marginBottom:8}}>Gender</div>
+                      <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+                        {genderData.map(g => (
+                          <div key={g.name} style={{display:"flex",alignItems:"center",gap:6}}>
+                            <div style={{width:8,height:8,borderRadius:"50%",
+                              background:GENDER_COLORS[g.name] || C.inkLight}} />
+                            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.inkMid}}>{g.name}</span>
+                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight}}>{g.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Life events + Confidence row */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24}}>
-                {/* Top life events */}
                 <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"20px"}}>
                   <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
                     textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Top Life Events</div>
@@ -506,12 +634,8 @@ export default function AdminClient({
                         <Bar dataKey="count" fill={seasonColors.Identity} radius={[0,4,4,0]} />
                       </BarChart>
                     </ResponsiveContainer>
-                  ) : (
-                    <p style={{fontSize:13,color:C.inkLight}}>No life events data yet.</p>
-                  )}
+                  ) : <p style={{fontSize:13,color:C.inkLight}}>No life events data yet.</p>}
                 </div>
-
-                {/* Confidence breakdown */}
                 <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"20px"}}>
                   <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
                     textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Confidence Breakdown</div>
@@ -899,6 +1023,40 @@ export default function AdminClient({
                     style={{fontFamily:"'DM Mono',monospace",fontSize:11,padding:"6px 12px",
                       border:`1px solid ${C.border}`,borderRadius:6,background:C.white,
                       color:aPage>=totalPages-1?C.inkLight:C.ink,cursor:aPage>=totalPages-1?"default":"pointer"}}>Next →</button>
+                </div>
+              )}
+
+              {/* Incomplete Sessions */}
+              {incompleteSessions.length > 0 && (
+                <div style={{marginTop:36}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                    textTransform:"uppercase",color:C.red,marginBottom:14}}>
+                    Incomplete Sessions ({incompleteSessions.length})
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1fr 0.8fr",
+                    gap:8,padding:"8px 16px",fontFamily:"'DM Mono',monospace",fontSize:10,
+                    letterSpacing:"0.06em",textTransform:"uppercase",color:C.inkLight,marginBottom:4}}>
+                    <span>Email</span><span>Furthest Step</span><span>Last Active</span><span>Device</span>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    {incompleteSessions.map((s, i) => (
+                      <div key={i} style={{
+                        display:"grid",gridTemplateColumns:"2fr 1.2fr 1fr 0.8fr",
+                        gap:8,padding:"10px 16px",background:C.white,border:`1px solid ${C.border}`,
+                        borderRadius:10,alignItems:"center",
+                      }}>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:C.ink,
+                          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.email}</span>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkMid,
+                          textTransform:"capitalize"}}>{s.furthest_step.replace(/_/g, " ")}</span>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight}}>
+                          {timeAgo(s.last_active_at)}
+                        </span>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight,
+                          textTransform:"capitalize"}}>{s.device_type}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

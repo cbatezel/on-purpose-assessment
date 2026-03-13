@@ -214,9 +214,90 @@ export default async function AdminPage() {
     .filter(ci => ci.user_id)
     .map(ci => ci.user_id as string);
 
+  // ── Fetch assessment sessions for analytics ─────────────────
+  const { data: allSessions } = await adminClient
+    .from("assessment_sessions")
+    .select("id, created_at, email, device_type, timezone, referrer, utm_source, utm_medium, utm_campaign, current_step, furthest_step, completed_at, time_to_complete_seconds, assessment_result_id, last_active_at")
+    .order("created_at", { ascending: false });
+
+  // Session analytics
+  const sessions = allSessions || [];
+  const completedSessions = sessions.filter(s => s.completed_at);
+  const incompleteSessions = sessions.filter(s => !s.completed_at);
+  const completionRate = sessions.length > 0 ? Math.round((completedSessions.length / sessions.length) * 100) : 0;
+
+  // Avg time to complete
+  const completionTimes = completedSessions.filter(s => s.time_to_complete_seconds).map(s => s.time_to_complete_seconds as number);
+  const avgTimeToComplete = completionTimes.length > 0 ? Math.round(completionTimes.reduce((a, b) => a + b, 0) / completionTimes.length) : null;
+
+  // Device breakdown
+  const deviceCounts: Record<string, number> = {};
+  for (const s of sessions) {
+    const d = s.device_type || "unknown";
+    deviceCounts[d] = (deviceCounts[d] || 0) + 1;
+  }
+  const deviceData = Object.entries(deviceCounts).map(([name, value]) => ({ name, value }));
+
+  // Timezone → region mapping
+  const tzRegionMap = (tz: string): string => {
+    if (!tz) return "Unknown";
+    if (/America\/(New_York|Detroit|Indiana|Louisville|Toronto|Montreal|Atlanta|Miami|Philadelphia|Washington|Boston|Charlotte|Pittsburgh)/i.test(tz)) return "US East";
+    if (/America\/(Chicago|Winnipeg|Dallas|Houston|Minneapolis|Memphis|Milwaukee|Nashville|Oklahoma|Omaha|Boise|Denver|Phoenix|Indianapolis)/i.test(tz) && !/Mountain|Phoenix|Denver|Boise/i.test(tz)) return "US Central";
+    if (/America\/(Denver|Boise|Phoenix|Edmonton|Albuquerque|Salt_Lake)/i.test(tz)) return "US Mountain";
+    if (/America\/(Los_Angeles|Vancouver|Seattle|Portland|San_Francisco|Anchorage|Juneau|Adak)/i.test(tz)) return "US Pacific";
+    if (/America\//.test(tz)) return "Americas Other";
+    return "International";
+  };
+  const regionCounts: Record<string, number> = {};
+  for (const s of sessions) {
+    const region = tzRegionMap(s.timezone || "");
+    regionCounts[region] = (regionCounts[region] || 0) + 1;
+  }
+  const locationData = Object.entries(regionCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({ name, count }));
+
+  // Referral sources
+  const referralCounts: Record<string, number> = {};
+  for (const s of sessions) {
+    let source = s.utm_source || "";
+    if (!source && s.referrer) {
+      try { source = new URL(s.referrer).hostname; } catch { source = s.referrer; }
+    }
+    if (!source) source = "Direct";
+    referralCounts[source] = (referralCounts[source] || 0) + 1;
+  }
+  const referralData = Object.entries(referralCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([name, count]) => ({ name, count }));
+
+  // Drop-off funnel
+  const funnelSteps = [
+    { label: "Started (email)", test: () => true },
+    { label: "Completed demographics", test: (s: typeof sessions[0]) => {
+      const demoSteps = ["life_events","self_season","season_q1","expertise_q1","passion_q1","processing","results"];
+      return demoSteps.some(ds => s.furthest_step?.includes(ds)) || !!s.completed_at;
+    }},
+    { label: "Started questions", test: (s: typeof sessions[0]) => {
+      return s.furthest_step?.startsWith("season_q") || s.furthest_step?.startsWith("expertise_q") || s.furthest_step?.startsWith("passion_q") || s.furthest_step === "processing" || s.furthest_step === "results" || !!s.completed_at;
+    }},
+    { label: "Reached halfway", test: (s: typeof sessions[0]) => {
+      if (s.completed_at) return true;
+      const step = s.furthest_step || "";
+      // Halfway is around expertise questions
+      return step.startsWith("expertise_q") || step.startsWith("passion_q") || step === "processing" || step === "results";
+    }},
+    { label: "Completed", test: (s: typeof sessions[0]) => !!s.completed_at },
+  ];
+  const funnelData = funnelSteps.map(f => ({
+    label: f.label,
+    count: sessions.filter(f.test).length,
+  }));
+
   return (
     <AdminClient
-      stats={stats}
+      stats={{...stats, completionRate}}
       users={users}
       assessments={assessments}
       cohortInterest={cohortInterest || []}
@@ -229,6 +310,17 @@ export default async function AdminPage() {
       lifeEventData={lifeEventData}
       allDailyCounts={allDailyCounts}
       cohortUserIds={cohortUserIds}
+      avgTimeToComplete={avgTimeToComplete}
+      deviceData={deviceData}
+      locationData={locationData}
+      referralData={referralData}
+      funnelData={funnelData}
+      incompleteSessions={incompleteSessions.slice(0, 100).map(s => ({
+        email: s.email || "—",
+        furthest_step: s.furthest_step || "email",
+        last_active_at: s.last_active_at || s.created_at,
+        device_type: s.device_type || "—",
+      }))}
     />
   );
 }

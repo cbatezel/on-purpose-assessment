@@ -526,6 +526,13 @@ function AppInner() {
   const [lookingUp, setLookingUp] = useState(false);
   // Welcome back name for returning users (shown briefly)
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
+  // Session tracking
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const sessionCreatedAt = useRef<number | null>(null);
+  // UTM params (read on mount)
+  const utmSource = searchParams.get("utm_source") || "";
+  const utmMedium = searchParams.get("utm_medium") || "";
+  const utmCampaign = searchParams.get("utm_campaign") || "";
 
   // Detect touch/mobile device (no hover capability)
   const [isMobile, setIsMobile] = useState(false);
@@ -595,6 +602,42 @@ function AppInner() {
 
   // Scroll to top on step/question change
   useEffect(()=>{ window.scrollTo({top:0,behavior:"smooth"}); },[step,qIndex,scIndex]);
+
+  // Get step name for session tracking
+  const getStepName = (s: number, scIdx: number, qIdx: number): string => {
+    if (s === 0) return "landing";
+    if (s === 1) return "email";
+    if (s === 2) return "name";
+    if (s === 3) return "demographics";
+    if (s === 4) return "life_events";
+    if (s === 5) return "self_season";
+    if (s === 6) return `season_q${scIdx + 1}`;
+    if (s === 7) {
+      // Determine which question section and index
+      const card = allQ[qIdx];
+      if (card) return `${card.section}_q${qIdx + 1}`;
+      return `question_${qIdx + 1}`;
+    }
+    if (s === 8) return "processing";
+    if (s === 9) return "results";
+    return `step_${s}`;
+  };
+
+  // Track step changes in session (fire and forget)
+  useEffect(() => {
+    if (!sessionId || step === 0) return;
+    const stepName = getStepName(step, scIndex, qIndex);
+    fetch("/api/session", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        current_step: stepName,
+        furthest_step: stepName,
+        last_active_at: new Date().toISOString(),
+      }),
+    }).catch(() => {});
+  }, [sessionId, step, scIndex, qIndex]); // eslint-disable-line
 
   // Compute results when entering processing screen (step 8)
   useEffect(()=>{
@@ -705,6 +748,9 @@ function AppInner() {
       season_self_select: selfSelectSeason,
       season_confirmation_score: parseFloat(confirmationAvg.toFixed(2)),
     };
+    // Calculate time to complete
+    const timeToComplete = sessionCreatedAt.current ? Math.round((Date.now() - sessionCreatedAt.current) / 1000) : null;
+
     (async () => {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
@@ -716,7 +762,22 @@ function AppInner() {
           if (res.ok) {
             const data = await res.json();
             console.log("[assessment] Submit succeeded on attempt", attempt + 1);
-            if (data.assessment_id) setAssessmentId(data.assessment_id);
+            if (data.assessment_id) {
+              setAssessmentId(data.assessment_id);
+              // Update session with completion data
+              if (sessionId) {
+                fetch("/api/session", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    session_id: sessionId,
+                    completed_at: new Date().toISOString(),
+                    time_to_complete_seconds: timeToComplete,
+                    assessment_result_id: data.assessment_id,
+                  }),
+                }).catch(() => {});
+              }
+            }
             return;
           }
           console.warn("[assessment] Submit attempt", attempt + 1, "status:", res.status);
@@ -975,6 +1036,26 @@ function AppInner() {
                 const trimmedEmail = form.email.trim();
                 setForm(f=>({...f, email: trimmedEmail}));
                 setLookingUp(true);
+                // Create session for analytics (fire and forget but capture ID)
+                const deviceType = /Mobi/i.test(navigator.userAgent) ? (/Tablet|iPad/i.test(navigator.userAgent) ? "tablet" : "mobile") : "desktop";
+                fetch("/api/session", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    email: trimmedEmail,
+                    device_type: deviceType,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    referrer: document.referrer || null,
+                    utm_source: utmSource || null,
+                    utm_medium: utmMedium || null,
+                    utm_campaign: utmCampaign || null,
+                  }),
+                }).then(r => r.json()).then(d => {
+                  if (d.session_id) {
+                    setSessionId(d.session_id);
+                    sessionCreatedAt.current = Date.now();
+                  }
+                }).catch(() => {});
                 try {
                   const res = await fetch("/api/user-lookup", {
                     method: "POST",
