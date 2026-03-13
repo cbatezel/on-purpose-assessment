@@ -93,7 +93,7 @@ export default function LoginPage() {
                   autoComplete="email"
                   inputMode="email"
                   style={{
-                    width:"100%",height:50,
+                    width:"100%",height:50,boxSizing:"border-box",
                     border:`1.5px solid ${email ? C.ink : C.border}`,
                     borderRadius:10,padding:"0 14px",
                     fontFamily:"'DM Sans',sans-serif",fontSize:16,
