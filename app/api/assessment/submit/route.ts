@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { adminClient } from "@/lib/supabase/admin";
 
+function capitalizeName(name: string): string {
+  return name.replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    console.log("[assessment/submit] Incoming body:", JSON.stringify(body, null, 2));
 
     const {
-      email,
-      name,
+      email: rawEmail,
+      name: rawName,
       birth_year,
       gender,
       life_events,
@@ -28,6 +31,13 @@ export async function POST(request: Request) {
       season_self_select,
       season_confirmation_score,
     } = body;
+
+    // Normalize email (lowercase) and name (capitalize words)
+    const email = rawEmail?.trim().toLowerCase() || "";
+    const name = rawName ? capitalizeName(rawName.trim()) : "";
+
+    console.log("[assessment/submit] Demographics: birth_year=%s gender=%s name=%s email=%s life_events=%s",
+      birth_year, gender, name, email, JSON.stringify(life_events));
 
     // 1. Look up user by email (filtered query, not full list)
     let userId: string | undefined;
@@ -81,6 +91,11 @@ export async function POST(request: Request) {
       }
       userId = newUser.user.id;
       console.log("[assessment/submit] Created user:", userId);
+    } else if (name) {
+      // Update existing user's name (capitalize)
+      await adminClient.auth.admin.updateUserById(userId, {
+        user_metadata: { name },
+      }).catch(() => {});
     }
 
     // 2. Insert assessment result

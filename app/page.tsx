@@ -566,9 +566,8 @@ function AppInner() {
             const p = data.profile;
             setForm(f => ({
               ...f,
-              dobMonth: f.dobMonth || (p.birth_year ? "" : ""),
-              dobYear: f.dobYear || (p.birth_year ? String(p.birth_year) : ""),
-              gender: f.gender || p.gender || "",
+              dobYear: p.birth_year ? String(p.birth_year) : f.dobYear,
+              gender: p.gender || f.gender,
             }));
             if (p.birth_year) {
               setHasProfile(true);
@@ -727,7 +726,7 @@ function AppInner() {
 
     // Fire API call in the background with retry — don't block the UI
     const payload = {
-      email: form.email,
+      email: form.email.trim().toLowerCase(),
       name: form.name,
       birth_year: birthYear,
       gender: form.gender || null,
@@ -1033,7 +1032,7 @@ function AppInner() {
               <PrimaryBtn onClick={async ()=>{
                 setTriedEmail(true);
                 if (!canEmail || lookingUp) return;
-                const trimmedEmail = form.email.trim();
+                const trimmedEmail = form.email.trim().toLowerCase();
                 setForm(f=>({...f, email: trimmedEmail}));
                 setLookingUp(true);
                 // Create session for analytics (fire and forget but capture ID)
@@ -1065,9 +1064,9 @@ function AppInner() {
                   const data = await res.json();
                   if (data.found) {
                     // Returning user — pre-fill data
-                    if (data.name) setForm(f=>({...f, name: f.name || data.name}));
-                    if (data.birth_year) setForm(f=>({...f, dobYear: f.dobYear || String(data.birth_year)}));
-                    if (data.gender) setForm(f=>({...f, gender: f.gender || data.gender}));
+                    if (data.name) setForm(f=>({...f, name: data.name}));
+                    if (data.birth_year) setForm(f=>({...f, dobYear: String(data.birth_year)}));
+                    if (data.gender) setForm(f=>({...f, gender: data.gender}));
                     if (data.hasFullDemographics) {
                       setHasProfile(true);
                       // Show welcome back moment, then skip to life events
