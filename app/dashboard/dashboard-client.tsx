@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { lookupProfile } from "@/lib/assessment-data";
 
 const C = {
   bg:"#F0EDE8", white:"#FAFAF8", ink:"#1C1B19", inkMid:"#4A4742",
@@ -23,57 +23,15 @@ const seasonDescriptions: Record<string, string> = {
 
 interface AssessmentResult {
   id: string; created_at: string; season: string; profile_name: string;
-  season_score: number; expertise_score: number; passion_score: number; bs_score: number;
   season_cohort: string | null;
 }
-
-const questionCounts = { season: 4, expertise: 8, passion: 7, bs: 2 };
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
-function toAvg(score: number, count: number): string {
-  if (!count) return "0.0";
-  return (score / count).toFixed(1);
-}
-
-function ScoreBar({ label, score, count }: { label: string; score: number; count: number }) {
-  const avg = count ? score / count : 0;
-  const pct = Math.min(100, (avg / 5) * 100);
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.06em",
-          textTransform: "uppercase", color: C.inkMid }}>{label}</span>
-        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight }}>
-          {toAvg(score, count)}/5
-        </span>
-      </div>
-      <div style={{ height: 8, borderRadius: 4, background: C.border, overflow: "hidden" }}>
-        <div style={{
-          height: "100%", borderRadius: 4, width: `${pct}%`,
-          background: label === "BS Meter" ? C.red : C.sage,
-          transition: "width 0.6s ease-out",
-        }} />
-      </div>
-    </div>
-  );
-}
-
-function ScoreBars({ r }: { r: AssessmentResult }) {
-  return (
-    <>
-      <ScoreBar label="Season" score={r.season_score} count={questionCounts.season} />
-      <ScoreBar label="Expertise" score={r.expertise_score} count={questionCounts.expertise} />
-      <ScoreBar label="Passion" score={r.passion_score} count={questionCounts.passion} />
-      <ScoreBar label="BS Meter" score={r.bs_score} count={questionCounts.bs} />
-    </>
-  );
-}
 
 export default function DashboardClient({ name, results, isAdmin = false }: { name: string; results: AssessmentResult[]; isAdmin?: boolean }) {
   const router = useRouter();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -196,20 +154,20 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
                 fontSize: "clamp(26px,5vw,34px)", fontWeight: 700, color: C.ink,
                 lineHeight: 1.15, marginBottom: 4 }}>
                 {latest.profile_name}
-                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%",
-                  background: C.red, marginLeft: 4, verticalAlign: "middle", marginBottom: 4 }} />
               </h2>
 
               {latest.season_cohort && (
                 <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight,
-                  marginBottom: 20 }}>
+                  marginBottom: 12 }}>
                   Cohort: {latest.season_cohort}
                 </p>
               )}
 
-              <hr style={{ border: "none", borderTop: `1px solid ${C.border}`, margin: "18px 0 20px" }} />
-
-              <ScoreBars r={latest} />
+              <p style={{ fontFamily: "'Playfair Display',Georgia,serif",
+                fontSize: 15, fontStyle: "italic", color: C.inkMid, lineHeight: 1.55,
+                marginTop: 12 }}>
+                &ldquo;{lookupProfile(latest.season, latest.profile_name).mirrorLine}&rdquo;
+              </p>
             </div>
 
             <div style={{ marginBottom: 32 }}>
@@ -278,18 +236,12 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
                           {formatDate(r.created_at)}
                         </span>
                       </div>
-                      {/* Compact score summary */}
-                      <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-                        {[
-                          { l: "S", v: toAvg(r.season_score, questionCounts.season) },
-                          { l: "E", v: toAvg(r.expertise_score, questionCounts.expertise) },
-                          { l: "P", v: toAvg(r.passion_score, questionCounts.passion) },
-                        ].map(s => (
-                          <span key={s.l} style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: C.inkLight }}>
-                            {s.l}:{s.v}
-                          </span>
-                        ))}
-                      </div>
+                      <p style={{ fontFamily: "'Playfair Display',Georgia,serif",
+                        fontSize: 12, fontStyle: "italic", color: C.inkLight, lineHeight: 1.5,
+                        marginTop: 6, overflow: "hidden", textOverflow: "ellipsis",
+                        display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>
+                        &ldquo;{lookupProfile(r.season, r.profile_name).mirrorLine}&rdquo;
+                      </p>
                     </div>
                   </div>
                 );

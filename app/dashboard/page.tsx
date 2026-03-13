@@ -20,7 +20,7 @@ export default async function DashboardPage() {
   // Try with user's session first
   const { data: results, error: rlsError } = await supabase
     .from("assessment_results")
-    .select("id, created_at, season, profile_name, season_score, expertise_score, passion_score, bs_score, season_cohort, user_id")
+    .select("id, created_at, season, profile_name, season_cohort, user_id")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -31,7 +31,7 @@ export default async function DashboardPage() {
   if (!results || results.length === 0) {
     const { data: adminResults, error: adminError } = await adminClient
       .from("assessment_results")
-      .select("id, created_at, season, profile_name, season_score, expertise_score, passion_score, bs_score, season_cohort, user_id")
+      .select("id, created_at, season, profile_name, season_cohort, user_id")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
