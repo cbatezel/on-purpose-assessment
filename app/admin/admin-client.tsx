@@ -51,7 +51,7 @@ interface Assessment {
   id: string; created_at: string; user_id: string;
   season: string; profile_name: string; season_confidence: string | null;
   season_score: number; expertise_score: number; passion_score: number; bs_score: number;
-  email: string; name: string;
+  email: string; name: string; has_feedback?: boolean;
 }
 
 interface CohortInterest {
@@ -963,12 +963,13 @@ export default function AdminClient({
               </div>
 
               {/* Table header */}
-              <div style={{display:"grid",gridTemplateColumns:"1.5fr 1.5fr 1fr 1.2fr 0.7fr 1.2fr 1fr",
+              <div style={{display:"grid",gridTemplateColumns:"1.5fr 1.5fr 1fr 1.2fr 0.7fr 0.4fr 1.2fr 1fr",
                 gap:8,padding:"8px 16px",fontFamily:"'DM Mono',monospace",fontSize:10,
                 letterSpacing:"0.06em",textTransform:"uppercase",color:C.inkLight,marginBottom:4}}>
                 {[
                   {key:"name",label:"Name"},{key:"email",label:"Email"},{key:"season",label:"Season"},
                   {key:"profile_name",label:"Profile"},{key:"season_confidence",label:"Conf"},
+                  {key:"has_feedback",label:"FB"},
                   {key:"season_score",label:"Scores"},{key:"created_at",label:"Date"},
                 ].map(col=>(
                   <button key={col.key} onClick={()=>handleSortToggle(col.key)} style={{
@@ -983,7 +984,7 @@ export default function AdminClient({
                 {pagedAssessments.map(a => (
                   <Link key={a.id} href={`/admin/assessment/${a.id}`} style={{textDecoration:"none"}}>
                     <div style={{
-                      display:"grid",gridTemplateColumns:"1.5fr 1.5fr 1fr 1.2fr 0.7fr 1.2fr 1fr",
+                      display:"grid",gridTemplateColumns:"1.5fr 1.5fr 1fr 1.2fr 0.7fr 0.4fr 1.2fr 1fr",
                       gap:8,padding:"10px 16px",background:C.white,border:`1px solid ${C.border}`,
                       borderRadius:10,alignItems:"center",cursor:"pointer",transition:"box-shadow 0.15s",
                     }}
@@ -998,6 +999,9 @@ export default function AdminClient({
                       <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.ink,
                         overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.profile_name}</span>
                       <ConfidenceBadge confidence={a.season_confidence} />
+                      <span style={{textAlign:"center",fontSize:13}}>
+                        {a.has_feedback ? <span style={{color:C.sage}} title="Feedback submitted">✓</span> : <span style={{color:C.border}}>—</span>}
+                      </span>
                       <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight}}>
                         S:{toAvg(a.season_score,qCounts.season)} E:{toAvg(a.expertise_score,qCounts.expertise)} P:{toAvg(a.passion_score,qCounts.passion)}
                       </span>

@@ -24,7 +24,7 @@ export default async function AdminPage() {
   // ── Fetch all assessment results ────────────────────────────────
   const { data: allResults } = await adminClient
     .from("assessment_results")
-    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score, season_confirmation_score, birth_year, gender, life_events")
+    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score, season_confirmation_score, birth_year, gender, life_events, feedback_accuracy")
     .order("created_at", { ascending: false });
 
   // ── Build user map from auth ────────────────────────────────────
@@ -148,6 +148,7 @@ export default async function AdminPage() {
     ...r,
     email: userMap[r.user_id]?.email || "",
     name: userMap[r.user_id]?.name || "",
+    has_feedback: !!r.feedback_accuracy,
   }));
 
   // ── Fetch cohort interest ───────────────────────────────────────

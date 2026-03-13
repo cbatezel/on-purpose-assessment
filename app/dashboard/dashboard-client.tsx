@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -26,11 +27,17 @@ interface AssessmentResult {
   season_cohort: string | null;
 }
 
+interface LatestFeedback {
+  feedback_accuracy: number | null;
+  feedback_new_insight: boolean | null;
+  feedback_open_text: string | null;
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-export default function DashboardClient({ name, results, isAdmin = false }: { name: string; results: AssessmentResult[]; isAdmin?: boolean }) {
+export default function DashboardClient({ name, results, isAdmin = false, latestFeedback }: { name: string; results: AssessmentResult[]; isAdmin?: boolean; latestFeedback?: LatestFeedback | null }) {
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -42,6 +49,14 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
   const latest = results[0] || null;
   const history = results.slice(1);
   const accent = latest ? (seasonAccent[latest.season] || C.sage) : C.sage;
+
+  const hasFeedback = !!(latestFeedback?.feedback_accuracy || latestFeedback?.feedback_new_insight !== null && latestFeedback?.feedback_new_insight !== undefined || latestFeedback?.feedback_open_text);
+  const [fbEditing, setFbEditing] = useState(!hasFeedback);
+  const [fbAccuracy, setFbAccuracy] = useState<number | null>(latestFeedback?.feedback_accuracy ?? null);
+  const [fbInsight, setFbInsight] = useState<boolean | null>(latestFeedback?.feedback_new_insight ?? null);
+  const [fbText, setFbText] = useState(latestFeedback?.feedback_open_text || "");
+  const [fbSubmitting, setFbSubmitting] = useState(false);
+  const [fbSubmitted, setFbSubmitted] = useState(false);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg }}>
@@ -178,6 +193,179 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
                 background: C.red, color: "white", textDecoration: "none",
                 letterSpacing: "0.01em", transition: "background 0.15s",
               }}>Take the Assessment Again</Link>
+            </div>
+
+            {/* ── Beta Feedback ── */}
+            <div style={{
+              marginBottom: 32, paddingTop: 32, paddingLeft: 24, marginLeft: -4,
+              borderLeft: `3px solid ${accent}`,
+            }}>
+              {(hasFeedback && !fbEditing && !fbSubmitted) ? (
+                <>
+                  <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif",
+                    fontSize: "clamp(20px,4vw,26px)", fontWeight: 600, color: C.ink,
+                    lineHeight: 1.2, marginBottom: 6 }}>
+                    Thank you<span style={{ color: C.red }}>.</span>
+                  </h2>
+                  <p style={{ fontSize: 14, lineHeight: 1.6, color: C.inkLight, marginBottom: 20 }}>
+                    Your feedback helps us make this better for everyone who comes next.
+                  </p>
+                  <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
+                    padding: "18px 22px", marginBottom: 16 }}>
+                    {latestFeedback?.feedback_accuracy && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                        padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
+                        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight,
+                          textTransform: "uppercase", letterSpacing: "0.06em" }}>Accuracy</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          {[1,2,3,4,5].map(n => (
+                            <span key={n} style={{ width: 8, height: 8, borderRadius: "50%", display: "inline-block",
+                              background: n <= (latestFeedback?.feedback_accuracy || 0) ? accent : C.border }} />
+                          ))}
+                          <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: C.inkMid, marginLeft: 4 }}>
+                            {latestFeedback.feedback_accuracy}/5
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    {latestFeedback?.feedback_new_insight !== null && latestFeedback?.feedback_new_insight !== undefined && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                        padding: "6px 0", borderBottom: latestFeedback?.feedback_open_text ? `1px solid ${C.border}` : "none" }}>
+                        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight,
+                          textTransform: "uppercase", letterSpacing: "0.06em" }}>New Insight</span>
+                        <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: 5,
+                          background: latestFeedback.feedback_new_insight ? C.sageLight : C.redLight,
+                          fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.06em",
+                          textTransform: "uppercase", color: latestFeedback.feedback_new_insight ? C.sage : C.red,
+                          fontWeight: 500 }}>
+                          {latestFeedback.feedback_new_insight ? "Yes" : "No"}
+                        </span>
+                      </div>
+                    )}
+                    {latestFeedback?.feedback_open_text && (
+                      <div style={{ paddingTop: 10 }}>
+                        <p style={{ fontFamily: "'Playfair Display',Georgia,serif", fontStyle: "italic",
+                          fontSize: 14, lineHeight: 1.5, color: C.inkMid }}>
+                          &ldquo;{latestFeedback.feedback_open_text}&rdquo;
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => { setFbEditing(true); setFbSubmitted(false); }} style={{
+                    fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.06em",
+                    color: C.inkLight, background: "none", border: "none", cursor: "pointer",
+                    padding: 0, transition: "color 0.15s",
+                  }}>Update Feedback</button>
+                </>
+              ) : fbSubmitted ? (
+                <div style={{ textAlign: "center", padding: "16px 0" }}>
+                  <p style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 18,
+                    fontStyle: "italic", color: C.inkMid, lineHeight: 1.5 }}>
+                    Thank you — this helps more than you know.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif",
+                    fontSize: "clamp(20px,4vw,26px)", fontWeight: 600, color: C.ink,
+                    lineHeight: 1.2, marginBottom: 6 }}>
+                    You&apos;re part of the first wave<span style={{ color: C.red }}>.</span>
+                  </h2>
+                  <p style={{ fontSize: 14, lineHeight: 1.6, color: C.inkLight, marginBottom: 24 }}>
+                    This assessment is new, and your perspective matters. We&apos;d love to hear what you think.
+                  </p>
+
+                  {/* Q1: Accuracy */}
+                  <div style={{ marginBottom: 22 }}>
+                    <p style={{ fontSize: 14, fontWeight: 500, color: C.ink, marginBottom: 10 }}>
+                      How accurately did this describe where you are right now?
+                    </p>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      {[1,2,3,4,5].map(n => (
+                        <button key={n} onClick={() => setFbAccuracy(n)} style={{
+                          width: 42, height: 42, borderRadius: 10,
+                          border: `1.5px solid ${fbAccuracy === n ? accent : C.border}`,
+                          background: fbAccuracy === n ? accent : C.white,
+                          color: fbAccuracy === n ? "white" : C.inkMid,
+                          fontFamily: "'DM Sans',sans-serif", fontSize: 15, fontWeight: 600,
+                          cursor: "pointer", transition: "all 0.15s",
+                        }}>{n}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5, paddingRight: 2 }}>
+                      <span style={{ fontSize: 11, color: C.inkLight, fontFamily: "'DM Mono',monospace" }}>Not at all</span>
+                      <span style={{ fontSize: 11, color: C.inkLight, fontFamily: "'DM Mono',monospace" }}>Spot on</span>
+                    </div>
+                  </div>
+
+                  {/* Q2: New insight */}
+                  <div style={{ marginBottom: 22 }}>
+                    <p style={{ fontSize: 14, fontWeight: 500, color: C.ink, marginBottom: 10 }}>
+                      Do you know something now that you didn&apos;t before?
+                    </p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {([true, false] as const).map(val => (
+                        <button key={String(val)} onClick={() => setFbInsight(val)} style={{
+                          padding: "9px 24px", borderRadius: 10,
+                          border: `1.5px solid ${fbInsight === val ? accent : C.border}`,
+                          background: fbInsight === val ? accent : C.white,
+                          color: fbInsight === val ? "white" : C.inkMid,
+                          fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 500,
+                          cursor: "pointer", transition: "all 0.15s",
+                        }}>{val ? "Yes" : "No"}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Q3: Open text */}
+                  <div style={{ marginBottom: 22 }}>
+                    <p style={{ fontSize: 14, fontWeight: 500, color: C.ink, marginBottom: 10 }}>
+                      What would you want us to know?
+                    </p>
+                    <textarea value={fbText} onChange={e => setFbText(e.target.value)}
+                      placeholder="Optional — anything at all"
+                      rows={3}
+                      style={{
+                        width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10,
+                        padding: "11px 14px", fontFamily: "'DM Sans',sans-serif", fontSize: 14,
+                        color: C.ink, background: C.white, outline: "none", resize: "vertical",
+                        transition: "border-color 0.15s",
+                      }}
+                      onFocus={e => e.target.style.borderColor = accent}
+                      onBlur={e => e.target.style.borderColor = C.border}
+                    />
+                  </div>
+
+                  {/* Submit */}
+                  <button disabled={fbSubmitting || (fbAccuracy === null && fbInsight === null && !fbText.trim())}
+                    onClick={async () => {
+                      setFbSubmitting(true);
+                      try {
+                        await fetch("/api/assessment/feedback", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            assessment_id: latest.id,
+                            feedback_accuracy: fbAccuracy,
+                            feedback_new_insight: fbInsight,
+                            feedback_open_text: fbText.trim() || null,
+                          }),
+                        });
+                      } catch {}
+                      setFbSubmitted(true);
+                      setFbSubmitting(false);
+                    }}
+                    style={{
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      padding: "11px 28px", borderRadius: 10, border: "none",
+                      background: (fbAccuracy === null && fbInsight === null && !fbText.trim()) ? C.border : accent,
+                      fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600,
+                      color: "white", cursor: (fbAccuracy === null && fbInsight === null && !fbText.trim()) ? "default" : "pointer",
+                      opacity: fbSubmitting ? 0.6 : 1, transition: "background 0.15s, opacity 0.15s",
+                    }}
+                  >{fbSubmitting ? "Sending..." : "Submit Feedback"}</button>
+                </>
+              )}
             </div>
           </>
         )}

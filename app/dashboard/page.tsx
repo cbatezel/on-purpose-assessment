@@ -34,6 +34,18 @@ export default async function DashboardPage() {
     finalResults = adminResults || [];
   }
 
+  // Fetch feedback for the latest assessment
+  let latestFeedback: { feedback_accuracy: number | null; feedback_new_insight: boolean | null; feedback_open_text: string | null } | null = null;
+  const latestId = finalResults?.[0]?.id;
+  if (latestId) {
+    const { data: fb } = await adminClient
+      .from("assessment_results")
+      .select("feedback_accuracy, feedback_new_insight, feedback_open_text")
+      .eq("id", latestId)
+      .single();
+    if (fb) latestFeedback = fb;
+  }
+
   const rawName = user.user_metadata?.name || user.email?.split("@")[0] || "there";
   const name = capitalizeName(rawName);
 
@@ -45,5 +57,5 @@ export default async function DashboardPage() {
     .single();
   const isAdmin = !!profile?.is_admin;
 
-  return <DashboardClient name={name} results={finalResults || []} isAdmin={isAdmin} />;
+  return <DashboardClient name={name} results={finalResults || []} isAdmin={isAdmin} latestFeedback={latestFeedback} />;
 }
