@@ -81,7 +81,7 @@ export default function LoginPage() {
             </p>
             <form onSubmit={handleSubmit}>
               <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,
-                padding:24,boxShadow:"0 1px 8px rgba(28,27,25,0.05)",marginBottom:16}}>
+                padding:24,boxShadow:"0 1px 8px rgba(28,27,25,0.05)",marginBottom:16,overflow:"hidden"}}>
                 <label style={{display:"block",fontSize:13,fontWeight:600,color:C.ink,marginBottom:7}}>
                   Email address
                 </label>
