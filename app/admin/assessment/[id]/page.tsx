@@ -464,6 +464,43 @@ export default async function AssessmentDetailPage({
             <InfoRow label="Season Cohort" value={assessment.season_cohort || "--"} />
           </SectionCard>
 
+          {/* Beta Feedback */}
+          {(assessment.feedback_accuracy || assessment.feedback_new_insight !== null || assessment.feedback_open_text) && (
+            <SectionCard title="Beta Feedback">
+              {assessment.feedback_accuracy && (
+                <InfoRow label="Accuracy" value={
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <ScoreBar score={assessment.feedback_accuracy} />
+                  </span>
+                } />
+              )}
+              {assessment.feedback_new_insight !== null && assessment.feedback_new_insight !== undefined && (
+                <InfoRow label="New Insight" value={
+                  <span style={{
+                    display: "inline-block", padding: "3px 8px", borderRadius: 5,
+                    background: assessment.feedback_new_insight ? C.sageLight : C.redLight,
+                    fontFamily: "'DM Mono',monospace", fontSize: 11,
+                    letterSpacing: "0.06em", textTransform: "uppercase",
+                    color: assessment.feedback_new_insight ? C.sage : C.red, fontWeight: 500,
+                  }}>{assessment.feedback_new_insight ? "Yes" : "No"}</span>
+                } />
+              )}
+              {assessment.feedback_open_text && (
+                <div style={{ paddingTop: 12 }}>
+                  <span style={{
+                    fontFamily: "'DM Mono',monospace", fontSize: 11,
+                    color: C.inkLight, textTransform: "uppercase",
+                    letterSpacing: "0.06em", display: "block", marginBottom: 8,
+                  }}>Open Response</span>
+                  <p style={{
+                    fontFamily: "'Playfair Display',serif", fontStyle: "italic",
+                    fontSize: 15, lineHeight: 1.6, color: C.inkMid,
+                  }}>&ldquo;{assessment.feedback_open_text}&rdquo;</p>
+                </div>
+              )}
+            </SectionCard>
+          )}
+
           {/* Life Events */}
           <SectionCard title="Life Events">
             {lifeEvents.length > 0 ? (

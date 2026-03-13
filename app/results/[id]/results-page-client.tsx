@@ -26,12 +26,13 @@ interface Props {
   userName?: string;
   userEmail?: string;
   userGender?: string;
+  assessmentId?: string;
 }
 
 export default function ResultsPageClient({
   behavioral, profile, gap, mismatch,
   seasonConfidence, confidenceNarrative, divergenceNarrative, lifeEventsNarrative,
-  userName, userEmail, userGender,
+  userName, userEmail, userGender, assessmentId,
 }: Props) {
   return (
     <>
@@ -65,6 +66,7 @@ export default function ResultsPageClient({
           userName={userName}
           userEmail={userEmail}
           userGender={userGender}
+          assessmentId={assessmentId}
         />
       </div>
     </>

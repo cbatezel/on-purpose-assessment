@@ -1459,6 +1459,7 @@ function AppInner() {
             confidenceNarrative={getConfidenceNarrative(result.behavioral, result.seasonConfidence)}
             divergenceNarrative={getDivergenceNarrative(result.eStage, result.pStage, result.lifeEventCount)}
             lifeEventsNarrative={getLifeEventsNarrative(result.lifeEventCount)}
+            assessmentId={assessmentId}
           />
         )}
 

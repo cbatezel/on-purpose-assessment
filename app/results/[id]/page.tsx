@@ -108,6 +108,7 @@ export default async function ResultsPage({ params }: Props) {
       userName={userName}
       userEmail={userEmail}
       userGender={userGender}
+      assessmentId={id}
     />
   );
 }

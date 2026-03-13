@@ -35,6 +35,7 @@ export interface ResultsDisplayProps {
   confidenceNarrative?: string;
   divergenceNarrative?: string | null;
   lifeEventsNarrative?: string | null;
+  assessmentId?: string | null;
 }
 
 function Divider() {
@@ -112,6 +113,7 @@ export default function ResultsDisplay({
   showShare = false, showStartOver = false, showCTAs = true, onStartOver, animated = true,
   isAuthenticated = false, saveFailed = false,
   seasonConfidence, confidenceNarrative, divergenceNarrative, lifeEventsNarrative,
+  assessmentId,
 }: ResultsDisplayProps) {
   const [copied, setCopied] = useState(false);
   const [copiedImg, setCopiedImg] = useState(false);
@@ -119,6 +121,11 @@ export default function ResultsDisplay({
   const [cohortForm, setCohortForm] = useState({ name: userName || "", email: userEmail || "", message: "" });
   const [cohortSubmitting, setCohortSubmitting] = useState(false);
   const [cohortSubmitted, setCohortSubmitted] = useState(false);
+  const [fbAccuracy, setFbAccuracy] = useState<number | null>(null);
+  const [fbInsight, setFbInsight] = useState<boolean | null>(null);
+  const [fbText, setFbText] = useState("");
+  const [fbSubmitting, setFbSubmitting] = useState(false);
+  const [fbSubmitted, setFbSubmitted] = useState(false);
 
   // Staged reveal: 0=hidden, 1=season, 2=profile name, 3=mirror line, 4=description, 5=question, 6=CTAs+share
   const [stage, setStage] = useState(animated ? 0 : 6);
@@ -423,6 +430,120 @@ export default function ResultsDisplay({
 
         <Divider/>
       </div>
+
+      {/* ── Beta Feedback ── */}
+      {assessmentId && !fbSubmitted && (
+        <div style={{...rs(6), marginTop:40, paddingTop:36,
+          borderLeft:`3px solid ${seasonAccent[behavioral] || C.sage}`,
+          paddingLeft:24, marginLeft:-4}}>
+          <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
+            fontSize:"clamp(22px,4vw,28px)",fontWeight:600,color:C.ink,
+            lineHeight:1.2,marginBottom:8}}>
+            You&apos;re part of the first wave<span style={{color:C.red}}>.</span>
+          </h2>
+          <p style={{fontSize:14,lineHeight:1.6,color:C.inkLight,marginBottom:28}}>
+            This assessment is new, and your perspective matters. We&apos;d love to hear what you think.
+          </p>
+
+          {/* Q1: Accuracy */}
+          <div style={{marginBottom:24}}>
+            <p style={{fontSize:14,fontWeight:500,color:C.ink,marginBottom:10}}>
+              How accurately did this describe where you are right now?
+            </p>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              {[1,2,3,4,5].map(n => (
+                <button key={n} onClick={()=>setFbAccuracy(n)} style={{
+                  width:42,height:42,borderRadius:10,border:`1.5px solid ${fbAccuracy===n ? (seasonAccent[behavioral]||C.sage) : C.border}`,
+                  background:fbAccuracy===n ? (seasonAccent[behavioral]||C.sage) : C.white,
+                  color:fbAccuracy===n ? "white" : C.inkMid,
+                  fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:600,
+                  cursor:"pointer",transition:"all 0.15s",
+                }}>{n}</button>
+              ))}
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:5,paddingRight:2}}>
+              <span style={{fontSize:11,color:C.inkLight,fontFamily:"'DM Mono',monospace"}}>Not at all</span>
+              <span style={{fontSize:11,color:C.inkLight,fontFamily:"'DM Mono',monospace"}}>Spot on</span>
+            </div>
+          </div>
+
+          {/* Q2: New insight */}
+          <div style={{marginBottom:24}}>
+            <p style={{fontSize:14,fontWeight:500,color:C.ink,marginBottom:10}}>
+              Do you know something now that you didn&apos;t before?
+            </p>
+            <div style={{display:"flex",gap:8}}>
+              {([true, false] as const).map(val => (
+                <button key={String(val)} onClick={()=>setFbInsight(val)} style={{
+                  padding:"9px 24px",borderRadius:10,
+                  border:`1.5px solid ${fbInsight===val ? (seasonAccent[behavioral]||C.sage) : C.border}`,
+                  background:fbInsight===val ? (seasonAccent[behavioral]||C.sage) : C.white,
+                  color:fbInsight===val ? "white" : C.inkMid,
+                  fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:500,
+                  cursor:"pointer",transition:"all 0.15s",
+                }}>{val ? "Yes" : "No"}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Q3: Open text */}
+          <div style={{marginBottom:24}}>
+            <p style={{fontSize:14,fontWeight:500,color:C.ink,marginBottom:10}}>
+              What would you want us to know?
+            </p>
+            <textarea value={fbText} onChange={e=>setFbText(e.target.value)}
+              placeholder="Optional — anything at all"
+              rows={3}
+              style={{
+                width:"100%",border:`1.5px solid ${C.border}`,borderRadius:10,
+                padding:"11px 14px",fontFamily:"'DM Sans',sans-serif",fontSize:14,
+                color:C.ink,background:C.white,outline:"none",resize:"vertical",
+                transition:"border-color 0.15s",
+              }}
+              onFocus={e=>e.target.style.borderColor=seasonAccent[behavioral]||C.sage}
+              onBlur={e=>e.target.style.borderColor=C.border}
+            />
+          </div>
+
+          {/* Submit */}
+          <button disabled={fbSubmitting || (fbAccuracy===null && fbInsight===null && !fbText.trim())}
+            onClick={async()=>{
+              setFbSubmitting(true);
+              try {
+                await fetch("/api/assessment/feedback",{
+                  method:"PATCH",
+                  headers:{"Content-Type":"application/json"},
+                  body:JSON.stringify({
+                    assessment_id: assessmentId,
+                    feedback_accuracy: fbAccuracy,
+                    feedback_new_insight: fbInsight,
+                    feedback_open_text: fbText.trim() || null,
+                  }),
+                });
+              } catch {}
+              setFbSubmitted(true);
+              setFbSubmitting(false);
+            }}
+            style={{
+              display:"inline-flex",alignItems:"center",justifyContent:"center",
+              padding:"11px 28px",borderRadius:10,border:"none",
+              background:(fbAccuracy===null && fbInsight===null && !fbText.trim()) ? C.border : (seasonAccent[behavioral]||C.sage),
+              fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,
+              color:"white",cursor:(fbAccuracy===null && fbInsight===null && !fbText.trim()) ? "default" : "pointer",
+              opacity:fbSubmitting ? 0.6 : 1,transition:"background 0.15s, opacity 0.15s",
+            }}
+          >{fbSubmitting ? "Sending..." : "Submit Feedback"}</button>
+        </div>
+      )}
+
+      {fbSubmitted && (
+        <div style={{...rs(6), marginTop:40, textAlign:"center", padding:"24px 0"}}>
+          <p style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,
+            fontStyle:"italic",color:C.inkMid,lineHeight:1.5}}>
+            Thank you — this helps more than you know.
+          </p>
+        </div>
+      )}
 
       {/* What's Next + CTAs + Share — all fade in last */}
       <div style={rs(6)}>
