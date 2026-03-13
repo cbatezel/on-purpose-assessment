@@ -51,5 +51,13 @@ export default async function DashboardPage() {
   const rawName = user.user_metadata?.name || user.email?.split("@")[0] || "there";
   const name = capitalizeName(rawName);
 
-  return <DashboardClient name={name} results={finalResults || []} />;
+  // Check admin status
+  const { data: profile } = await adminClient
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single();
+  const isAdmin = !!profile?.is_admin;
+
+  return <DashboardClient name={name} results={finalResults || []} isAdmin={isAdmin} />;
 }

@@ -81,7 +81,7 @@ function ScoreBars({ r }: { r: AssessmentResult }) {
   );
 }
 
-export default function DashboardClient({ name, results }: { name: string; results: AssessmentResult[] }) {
+export default function DashboardClient({ name, results, isAdmin = false }: { name: string; results: AssessmentResult[]; isAdmin?: boolean }) {
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -110,11 +110,20 @@ export default function DashboardClient({ name, results }: { name: string; resul
               Welcome, {name}<span style={{ color: C.red }}>.</span>
             </h1>
           </div>
-          <button onClick={handleSignOut} style={{
-            fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.06em",
-            color: C.inkLight, background: "none", border: "none", cursor: "pointer",
-            padding: "6px 10px", transition: "color 0.15s", flexShrink: 0, marginTop: 4,
-          }}>Sign Out</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginTop: 4 }}>
+            {isAdmin && (
+              <Link href="/admin" style={{
+                fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.06em",
+                color: C.red, textDecoration: "none", padding: "6px 10px",
+                transition: "color 0.15s",
+              }}>Admin</Link>
+            )}
+            <button onClick={handleSignOut} style={{
+              fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.06em",
+              color: C.inkLight, background: "none", border: "none", cursor: "pointer",
+              padding: "6px 10px", transition: "color 0.15s",
+            }}>Sign Out</button>
+          </div>
         </div>
 
         {/* Empty state */}
