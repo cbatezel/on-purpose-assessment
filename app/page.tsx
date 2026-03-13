@@ -934,7 +934,7 @@ function AppInner() {
 
         {/* Single progress bar */}
         {step>0 && step<9 && (
-          <div style={{position:"fixed",top:0,left:0,right:0,height:3,background:C.border,zIndex:100}}>
+          <div style={{position:"fixed",top:"env(safe-area-inset-top, 0px)",left:0,right:0,height:3,background:C.border,zIndex:100}}>
             <div style={{height:"100%",background:C.red,width:`${progress}%`,
               transition:"width 0.5s cubic-bezier(0.4,0,0.2,1)"}}/>
           </div>

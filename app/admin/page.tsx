@@ -24,11 +24,11 @@ export default async function AdminPage() {
   // ── Fetch all assessment results ────────────────────────────────
   const { data: allResults } = await adminClient
     .from("assessment_results")
-    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score, season_confirmation_score, birth_year, gender, life_events, feedback_accuracy, feedback_new_insight, feedback_open_text")
+    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score, season_confirmation_score, birth_year, gender, life_events, feedback_accuracy, feedback_new_insight, feedback_open_text, season_self_select")
     .order("created_at", { ascending: false });
 
   // ── Build user map from auth ────────────────────────────────────
-  const userMap: Record<string, { email: string; name: string; birth_year: number | null; gender: string | null }> = {};
+  const userMap: Record<string, { email: string; name: string; birth_year: number | null; gender: string | null; is_admin: boolean }> = {};
   const { data: authUsers } = await adminClient.auth.admin.listUsers();
   if (authUsers?.users) {
     for (const u of authUsers.users) {
@@ -37,6 +37,7 @@ export default async function AdminPage() {
         name: u.user_metadata?.name || u.email?.split("@")[0] || "",
         birth_year: null,
         gender: null,
+        is_admin: false,
       };
     }
   }
@@ -44,12 +45,13 @@ export default async function AdminPage() {
   // ── Fetch birth_year and gender from profiles (source of truth) ──
   const { data: allProfiles } = await adminClient
     .from("profiles")
-    .select("id, birth_year, gender");
+    .select("id, birth_year, gender, is_admin");
   if (allProfiles) {
     for (const p of allProfiles) {
       if (userMap[p.id]) {
         userMap[p.id].birth_year = p.birth_year || null;
         userMap[p.id].gender = p.gender || null;
+        userMap[p.id].is_admin = !!p.is_admin;
       }
     }
   }
@@ -119,6 +121,13 @@ export default async function AdminPage() {
     latestSeason: string;
     latestProfile: string;
     latestDate: string;
+    firstDate: string;
+    latestAssessment: {
+      season_confidence: string | null;
+      profile_name: string;
+      season_self_select: string | null;
+      life_events: string[];
+    } | null;
   }> = {};
 
   for (const r of allResults || []) {
@@ -128,9 +137,18 @@ export default async function AdminPage() {
         latestSeason: r.season,
         latestProfile: r.profile_name,
         latestDate: r.created_at,
+        firstDate: r.created_at,
+        latestAssessment: {
+          season_confidence: r.season_confidence,
+          profile_name: r.profile_name,
+          season_self_select: r.season_self_select || null,
+          life_events: r.life_events || [],
+        },
       };
     } else {
       userSummaryMap[r.user_id].count++;
+      // Results are ordered desc, so the last one is the oldest
+      userSummaryMap[r.user_id].firstDate = r.created_at;
     }
   }
 
@@ -140,6 +158,7 @@ export default async function AdminPage() {
     email: userMap[userId]?.email || "",
     birth_year: userMap[userId]?.birth_year || null,
     gender: userMap[userId]?.gender || null,
+    is_admin: userMap[userId]?.is_admin || false,
     ...summary,
   }));
 

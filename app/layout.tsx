@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,12 @@ const url = "https://onpurposeassessment.com";
 const title = "The On Purpose Assessment";
 const description =
   "A quarterly diagnostic for your clarity and engagement with purpose. Discover your season, expertise, and passion — and what might be keeping you from the next one.";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title,

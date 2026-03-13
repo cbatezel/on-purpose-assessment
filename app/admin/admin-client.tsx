@@ -43,8 +43,15 @@ interface Stats {
 
 interface UserRow {
   userId: string; name: string; email: string;
-  birth_year: number | null; gender: string | null;
+  birth_year: number | null; gender: string | null; is_admin: boolean;
   count: number; latestSeason: string; latestProfile: string; latestDate: string;
+  firstDate: string;
+  latestAssessment: {
+    season_confidence: string | null;
+    profile_name: string;
+    season_self_select: string | null;
+    life_events: string[];
+  } | null;
 }
 
 interface Assessment {
@@ -219,7 +226,7 @@ export default function AdminClient({
 
   const handleEditUser = (u: UserRow) => {
     setEditingUser(u);
-    setEditForm({ name: u.name, email: u.email, birth_year: u.birth_year ? String(u.birth_year) : "", gender: u.gender || "", is_admin: false });
+    setEditForm({ name: u.name, email: u.email, birth_year: u.birth_year ? String(u.birth_year) : "", gender: u.gender || "", is_admin: u.is_admin });
     setMergeSearch("");
     setMergeTarget(null);
     setMergeConfirm(false);
@@ -767,10 +774,35 @@ export default function AdminClient({
                       {open && (
                         <div style={{padding:"0 18px 16px"}}>
                           <hr style={{border:"none",borderTop:`1px solid ${C.border}`,margin:"0 0 12px"}} />
-                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:13,marginBottom:12}}>
-                            <div><span style={{color:C.inkLight}}>Latest profile: </span><span style={{color:C.ink,fontWeight:500}}>{u.latestProfile}</span></div>
-                            <div><span style={{color:C.inkLight}}>Season: </span><span style={{color:C.ink,fontWeight:500}}>{u.latestSeason}</span></div>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 16px",fontSize:13,marginBottom:12}}>
+                            <div><span style={{color:C.inkLight}}>Name: </span><span style={{color:C.ink,fontWeight:500}}>{u.name || "—"}</span></div>
+                            <div><span style={{color:C.inkLight}}>Email: </span><span style={{color:C.ink,fontWeight:500}}>{u.email}</span></div>
+                            <div><span style={{color:C.inkLight}}>Birth Year: </span><span style={{color:C.ink,fontWeight:500}}>{u.birth_year || "—"}</span></div>
+                            <div><span style={{color:C.inkLight}}>Gender: </span><span style={{color:C.ink,fontWeight:500}}>{u.gender || "—"}</span></div>
+                            <div><span style={{color:C.inkLight}}>Assessments: </span><span style={{color:C.ink,fontWeight:500}}>{u.count}</span></div>
+                            <div><span style={{color:C.inkLight}}>First: </span><span style={{color:C.ink,fontWeight:500}}>{formatDate(u.firstDate)}</span></div>
+                            <div><span style={{color:C.inkLight}}>Latest: </span><span style={{color:C.ink,fontWeight:500}}>{formatDate(u.latestDate)}</span></div>
+                            <div><span style={{color:C.inkLight}}>Season: </span><SeasonBadge season={u.latestSeason} /></div>
+                            <div><span style={{color:C.inkLight}}>Profile: </span><span style={{color:C.ink,fontWeight:500}}>{u.latestProfile}</span></div>
+                            {u.latestAssessment?.season_confidence && (
+                              <div><span style={{color:C.inkLight}}>Confidence: </span><ConfidenceBadge confidence={u.latestAssessment.season_confidence} /></div>
+                            )}
+                            {u.latestAssessment?.season_self_select && (
+                              <div><span style={{color:C.inkLight}}>Self-selected: </span><SeasonBadge season={u.latestAssessment.season_self_select} /></div>
+                            )}
                           </div>
+                          {u.latestAssessment?.life_events && u.latestAssessment.life_events.length > 0 && (
+                            <div style={{marginBottom:12}}>
+                              <span style={{fontSize:13,color:C.inkLight}}>Life events: </span>
+                              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                                {u.latestAssessment.life_events.filter(e=>e!=="None of these").map((e,i) => (
+                                  <span key={i} style={{display:"inline-block",padding:"2px 8px",borderRadius:5,
+                                    background:C.sageLight,fontSize:11,color:C.sage,
+                                    fontFamily:"'DM Mono',monospace"}}>{e}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <button onClick={()=>handleEditUser(u)} style={{
                             fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.04em",
                             color:C.red,background:"none",border:"none",cursor:"pointer",padding:0,
