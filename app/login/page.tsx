@@ -36,8 +36,20 @@ export default function LoginPage() {
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",
-      alignItems:"center",justifyContent:"center",padding:"48px 24px"}}>
+      alignItems:"center",padding:"80px 24px 48px"}}>
       <div style={{width:"100%",maxWidth:400}}>
+        <div style={{marginBottom:24}}>
+          <Link href="/" style={{
+            display:"inline-flex",alignItems:"center",justifyContent:"center",
+            width:36,height:36,borderRadius:"50%",
+            background:"rgba(178,34,52,0.09)",border:"none",
+            textDecoration:"none",color:"#B22234",transition:"background 0.15s",
+          }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M11 14L6 9l5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Link>
+        </div>
         <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.12em",
           textTransform:"uppercase",color:C.sage,marginBottom:20,textAlign:"center"}}>
           Sign In
@@ -110,12 +122,6 @@ export default function LoginPage() {
             </form>
           </>
         )}
-
-        <div style={{textAlign:"center",marginTop:28}}>
-          <Link href="/" style={{fontSize:14,color:C.inkMid,textDecoration:"none"}}>
-            &larr; Back to Assessment
-          </Link>
-        </div>
 
         <div style={{textAlign:"center",padding:"30px 0 4px",fontSize:11,
           fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em",

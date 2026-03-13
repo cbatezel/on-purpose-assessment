@@ -55,6 +55,7 @@ export default function ResultsPageClient({
           gap={gap}
           mismatch={mismatch}
           showShare={true}
+          showCTAs={false}
           animated={false}
           isAuthenticated={true}
           seasonConfidence={seasonConfidence}

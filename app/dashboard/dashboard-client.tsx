@@ -10,27 +10,28 @@ const C = {
   sage:"#6B7D6A", sageLight:"#E8EEE7", border:"#DDD9D2",
 };
 
+const seasonAccent: Record<string, string> = {
+  Identity: "#C4956A", Exploration: "#6B8F71", Influence: "#8B2635", Multiplication: "#2D3A5E",
+};
+
+const seasonDescriptions: Record<string, string> = {
+  Identity:       "Building the foundation — clarifying who you are, what you believe, and how you connect with others.",
+  Exploration:    "Getting reps — trying things widely, taking on responsibility, learning what fits and what doesn't.",
+  Influence:      "Going deep — focused, in your lane, using your expertise and passion to make a specific difference.",
+  Multiplication: "Passing it on — investing in others, giving away what you've built, multiplying your impact through people.",
+};
+
 interface AssessmentResult {
-  id: string;
-  created_at: string;
-  season: string;
-  profile_name: string;
-  season_score: number;
-  expertise_score: number;
-  passion_score: number;
-  bs_score: number;
+  id: string; created_at: string; season: string; profile_name: string;
+  season_score: number; expertise_score: number; passion_score: number; bs_score: number;
   season_cohort: string | null;
 }
 
+const questionCounts = { season: 4, expertise: 8, passion: 7, bs: 2 };
+
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
-  });
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
-
-// Question counts per section (non-BS questions)
-const questionCounts = { season: 8, expertise: 8, passion: 7, bs: 2 };
-
 function toAvg(score: number, count: number): string {
   if (!count) return "0.0";
   return (score / count).toFixed(1);
@@ -59,17 +60,6 @@ function ScoreBar({ label, score, count }: { label: string; score: number; count
   );
 }
 
-function SeasonBadge({ season }: { season: string }) {
-  return (
-    <span style={{
-      display: "inline-block", padding: "4px 10px", borderRadius: 6,
-      background: C.sageLight, fontFamily: "'DM Mono',monospace",
-      fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase",
-      color: C.sage, fontWeight: 500,
-    }}>{season}</span>
-  );
-}
-
 function ScoreBars({ r }: { r: AssessmentResult }) {
   return (
     <>
@@ -93,13 +83,14 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
 
   const latest = results[0] || null;
   const history = results.slice(1);
+  const accent = latest ? (seasonAccent[latest.season] || C.sage) : C.sage;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg }}>
       <div style={{ maxWidth: 620, margin: "0 auto", padding: "48px 24px 72px" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 36 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
           <div>
             <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.12em",
               textTransform: "uppercase", color: C.sage, marginBottom: 8 }}>
@@ -155,14 +146,34 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
           </div>
         )}
 
-        {/* Latest result */}
+        {/* Season Hero Card */}
         {latest && (
           <>
+            <div style={{
+              background: accent + "12", border: `1px solid ${accent}30`,
+              borderRadius: 16, padding: "24px 26px", marginBottom: 20,
+              borderLeft: `4px solid ${accent}`,
+            }}>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.1em",
+                textTransform: "uppercase", color: accent, marginBottom: 8, fontWeight: 500 }}>
+                Your Season
+              </div>
+              <div style={{ fontFamily: "'Playfair Display',Georgia,serif",
+                fontSize: "clamp(28px,6vw,36px)", fontWeight: 700, color: C.ink,
+                lineHeight: 1.15, marginBottom: 8 }}>
+                {latest.season}
+              </div>
+              <p style={{ fontSize: 14, lineHeight: 1.6, color: C.inkMid, margin: 0 }}>
+                {seasonDescriptions[latest.season] || ""}
+              </p>
+            </div>
+
+            {/* Latest result card */}
             <div
               onClick={() => router.push(`/results/${latest.id}`)}
               style={{
                 background: C.white, border: `1px solid ${C.border}`, borderRadius: 14,
-                padding: "28px 26px", boxShadow: "0 1px 8px rgba(28,27,25,0.05)", marginBottom: 24,
+                padding: "28px 26px", boxShadow: "0 1px 8px rgba(28,27,25,0.05)", marginBottom: 20,
                 cursor: "pointer", transition: "box-shadow 0.15s",
               }}
               onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 2px 16px rgba(28,27,25,0.1)")}
@@ -179,10 +190,6 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
                     <path d="M5 3l4 4-4 4" stroke={C.inkLight} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
-              </div>
-
-              <div style={{ marginBottom: 6 }}>
-                <SeasonBadge season={latest.season} />
               </div>
 
               <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif",
@@ -217,60 +224,73 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
           </>
         )}
 
-        {/* History */}
+        {/* Your Journey — timeline when multiple results */}
         {history.length > 0 && (
-          <div>
+          <div style={{ marginBottom: 32 }}>
             <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.1em",
-              textTransform: "uppercase", color: C.sage, marginBottom: 14 }}>
-              Past Results
+              textTransform: "uppercase", color: C.sage, marginBottom: 16 }}>
+              Your Journey
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {history.map(r => {
-                const open = expandedId === r.id;
+
+            {/* Timeline */}
+            <div style={{ position: "relative", paddingLeft: 28 }}>
+              {/* Vertical line */}
+              <div style={{
+                position: "absolute", left: 9, top: 4, bottom: 4, width: 2,
+                background: `linear-gradient(to bottom, ${accent}, ${C.border})`,
+                borderRadius: 1,
+              }} />
+
+              {results.map((r, i) => {
+                const rAccent = seasonAccent[r.season] || C.sage;
                 return (
-                  <div key={r.id}
-                    style={{
-                      background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
-                      overflow: "hidden", transition: "box-shadow 0.15s",
-                      boxShadow: open ? "0 2px 12px rgba(28,27,25,0.08)" : "none",
-                    }}>
-                    <button
-                      onClick={() => setExpandedId(open ? null : r.id)}
+                  <div key={r.id} style={{ position: "relative", marginBottom: i < results.length - 1 ? 20 : 0 }}>
+                    {/* Dot */}
+                    <div style={{
+                      position: "absolute", left: -22, top: 3,
+                      width: 12, height: 12, borderRadius: "50%",
+                      background: i === 0 ? rAccent : C.white,
+                      border: `2px solid ${rAccent}`,
+                    }} />
+                    <div
+                      onClick={() => router.push(`/results/${r.id}`)}
                       style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        width: "100%", padding: "16px 20px", border: "none", background: "transparent",
-                        cursor: "pointer", textAlign: "left",
-                      }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <SeasonBadge season={r.season} />
-                        <span style={{ fontFamily: "'Playfair Display',Georgia,serif",
-                          fontSize: 17, fontWeight: 600, color: C.ink }}>
-                          {r.profile_name}
-                        </span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        background: C.white, border: `1px solid ${C.border}`, borderRadius: 10,
+                        padding: "14px 18px", cursor: "pointer", transition: "box-shadow 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 2px 10px rgba(28,27,25,0.08)"}
+                      onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{
+                            display: "inline-block", padding: "3px 8px", borderRadius: 5,
+                            background: rAccent + "18", fontFamily: "'DM Mono',monospace",
+                            fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase",
+                            color: rAccent, fontWeight: 500,
+                          }}>{r.season}</span>
+                          <span style={{ fontFamily: "'Playfair Display',Georgia,serif",
+                            fontSize: 16, fontWeight: 600, color: C.ink }}>
+                            {r.profile_name}
+                          </span>
+                        </div>
                         <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight }}>
                           {formatDate(r.created_at)}
                         </span>
-                        <svg width="12" height="7" viewBox="0 0 12 7" fill="none"
-                          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
-                          <path d="M1 1l5 5 5-5" stroke={C.inkLight} strokeWidth="1.5"
-                            strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
                       </div>
-                    </button>
-                    {open && (
-                      <div style={{ padding: "0 20px 20px" }}>
-                        <hr style={{ border: "none", borderTop: `1px solid ${C.border}`, margin: "0 0 16px" }} />
-                        <ScoreBars r={r} />
-                        <div style={{ marginTop: 8 }}>
-                          <Link href={`/results/${r.id}`} style={{
-                            fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: "0.04em",
-                            color: C.red, textDecoration: "none",
-                          }}>View full results &rarr;</Link>
-                        </div>
+                      {/* Compact score summary */}
+                      <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+                        {[
+                          { l: "S", v: toAvg(r.season_score, questionCounts.season) },
+                          { l: "E", v: toAvg(r.expertise_score, questionCounts.expertise) },
+                          { l: "P", v: toAvg(r.passion_score, questionCounts.passion) },
+                        ].map(s => (
+                          <span key={s.l} style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: C.inkLight }}>
+                            {s.l}:{s.v}
+                          </span>
+                        ))}
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
@@ -278,10 +298,16 @@ export default function DashboardClient({ name, results, isAdmin = false }: { na
           </div>
         )}
 
+        {/* Past Results (if only one past result, show simpler) */}
+        {history.length === 0 && latest && null}
+
         <div style={{ textAlign: "center", padding: "40px 0 4px", fontSize: 11,
           fontFamily: "'DM Mono',monospace", letterSpacing: "0.08em",
           textTransform: "uppercase", color: C.inkLight }}>
-          Powered by Third Space
+          <a href="https://thirdspacepublishing.com" target="_blank" rel="noopener noreferrer"
+            style={{ color: C.inkLight, textDecoration: "none", transition: "color 0.2s" }}>
+            Powered by Third Space
+          </a>
         </div>
       </div>
     </div>

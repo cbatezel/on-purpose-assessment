@@ -26,6 +26,7 @@ export interface ResultsDisplayProps {
   userGender?: string;
   showShare?: boolean;
   showStartOver?: boolean;
+  showCTAs?: boolean;
   onStartOver?: () => void;
   animated?: boolean;
   isAuthenticated?: boolean;
@@ -108,7 +109,7 @@ function CardBtn({children,onClick}: {children: React.ReactNode; onClick: () => 
 export default function ResultsDisplay({
   behavioral, profile, gap, mismatch,
   userName, userEmail, userGender,
-  showShare = false, showStartOver = false, onStartOver, animated = true,
+  showShare = false, showStartOver = false, showCTAs = true, onStartOver, animated = true,
   isAuthenticated = false, saveFailed = false,
   seasonConfidence, confidenceNarrative, divergenceNarrative, lifeEventsNarrative,
 }: ResultsDisplayProps) {
@@ -481,7 +482,7 @@ export default function ResultsDisplay({
         )}
 
         {/* What's Next */}
-        <div style={{paddingTop:16}}>
+        {showCTAs && <div style={{paddingTop:16}}>
           <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
             fontSize:"clamp(24px,5vw,32px)",fontWeight:700,lineHeight:1.2,
             color:C.ink,marginBottom:8}}>
@@ -550,7 +551,7 @@ export default function ResultsDisplay({
               Send us a message.
             </a>
           </p>
-        </div>
+        </div>}
 
         {/* ── Cohort Interest Modal ── */}
         {showCohortModal && (

@@ -4,7 +4,6 @@ import { adminClient } from "@/lib/supabase/admin";
 import AdminClient from "./admin-client";
 
 export default async function AdminPage() {
-  // Auth check
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -12,7 +11,6 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
-  // Check is_admin in profiles table
   const { data: profile } = await adminClient
     .from("profiles")
     .select("is_admin")
@@ -23,106 +21,84 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  // ── Fetch overview stats ──────────────────────────────────────
-
-  // Total users (count of distinct user_ids in assessment_results)
-  const { count: totalAssessments } = await adminClient
-    .from("assessment_results")
-    .select("*", { count: "exact", head: true });
-
-  const { data: distinctUsers } = await adminClient
-    .from("assessment_results")
-    .select("user_id");
-  const uniqueUserIds = new Set(distinctUsers?.map(r => r.user_id));
-  const totalUsers = uniqueUserIds.size;
-
-  // Assessments this week
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const { count: assessmentsThisWeek } = await adminClient
-    .from("assessment_results")
-    .select("*", { count: "exact", head: true })
-    .gte("created_at", weekAgo.toISOString());
-
-  // Average scores
+  // ── Fetch all assessment results ────────────────────────────────
   const { data: allResults } = await adminClient
     .from("assessment_results")
-    .select("season_score, expertise_score, passion_score, bs_score, season, profile_name");
-
-  let avgSeason = 0, avgExpertise = 0, avgPassion = 0, avgBs = 0;
-  const seasonCounts: Record<string, number> = {};
-  const profileCounts: Record<string, number> = {};
-
-  if (allResults && allResults.length > 0) {
-    let sSum = 0, eSum = 0, pSum = 0, bSum = 0;
-    for (const r of allResults) {
-      sSum += r.season_score || 0;
-      eSum += r.expertise_score || 0;
-      pSum += r.passion_score || 0;
-      bSum += r.bs_score || 0;
-      seasonCounts[r.season] = (seasonCounts[r.season] || 0) + 1;
-      profileCounts[r.profile_name] = (profileCounts[r.profile_name] || 0) + 1;
-    }
-    const n = allResults.length;
-    avgSeason = sSum / n;
-    avgExpertise = eSum / n;
-    avgPassion = pSum / n;
-    avgBs = bSum / n;
-  }
-
-  const mostCommonSeason = Object.entries(seasonCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
-  const mostCommonProfile = Object.entries(profileCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
-
-  // ── Fetch recent assessments (last 20) ────────────────────────
-
-  const { data: recentAssessments } = await adminClient
-    .from("assessment_results")
-    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score")
-    .order("created_at", { ascending: false })
-    .limit(20);
-
-  // Get user info for recent assessments
-  const recentUserIds = [...new Set(recentAssessments?.map(r => r.user_id) || [])];
-  const userMap: Record<string, { email: string; name: string }> = {};
-  if (recentUserIds.length > 0) {
-    const { data: authUsers } = await adminClient.auth.admin.listUsers();
-    if (authUsers?.users) {
-      for (const u of authUsers.users) {
-        userMap[u.id] = {
-          email: u.email || "",
-          name: u.user_metadata?.name || u.email?.split("@")[0] || "",
-        };
-      }
-    }
-  }
-
-  const recentWithUsers = (recentAssessments || []).map(r => ({
-    ...r,
-    email: userMap[r.user_id]?.email || "",
-    name: userMap[r.user_id]?.name || "",
-  }));
-
-  // ── Build user list with assessment counts ────────────────────
-
-  const userList = Object.entries(
-    (allResults || []).reduce<Record<string, {
-      user_id: string;
-      count: number;
-      latestSeason: string;
-      latestProfile: string;
-      latestDate: string;
-    }>>((acc, r) => {
-      // We don't have user_id on allResults query above, so re-query
-      return acc;
-    }, {})
-  );
-
-  // Full user summary query
-  const { data: userSummaries } = await adminClient
-    .from("assessment_results")
-    .select("user_id, season, profile_name, created_at")
+    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score, season_confirmation_score")
     .order("created_at", { ascending: false });
 
+  // ── Build user map from auth ────────────────────────────────────
+  const userMap: Record<string, { email: string; name: string }> = {};
+  const { data: authUsers } = await adminClient.auth.admin.listUsers();
+  if (authUsers?.users) {
+    for (const u of authUsers.users) {
+      userMap[u.id] = {
+        email: u.email || "",
+        name: u.user_metadata?.name || u.email?.split("@")[0] || "",
+      };
+    }
+  }
+
+  // ── Compute stats ──────────────────────────────────────────────
+  const uniqueUserIds = new Set(allResults?.map(r => r.user_id));
+  const totalUsers = uniqueUserIds.size;
+  const totalAssessments = allResults?.length || 0;
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const assessmentsThisWeek = allResults?.filter(r => new Date(r.created_at) >= weekAgo).length || 0;
+
+  // Normalized averages (divide by question count)
+  const qCounts = { season: 4, expertise: 8, passion: 7, bs: 2 };
+  let sSum = 0, eSum = 0, pSum = 0, bSum = 0, confSum = 0, confCount = 0;
+  const seasonCounts: Record<string, number> = {};
+  const confidenceCounts: Record<string, number> = {};
+  const profileCounts: Record<string, number> = {};
+  const dailyCounts: Record<string, number> = {};
+
+  for (const r of allResults || []) {
+    sSum += r.season_score || 0;
+    eSum += r.expertise_score || 0;
+    pSum += r.passion_score || 0;
+    bSum += r.bs_score || 0;
+    if (r.season_confirmation_score != null) {
+      confSum += Number(r.season_confirmation_score);
+      confCount++;
+    }
+    seasonCounts[r.season] = (seasonCounts[r.season] || 0) + 1;
+    if (r.season_confidence) {
+      confidenceCounts[r.season_confidence] = (confidenceCounts[r.season_confidence] || 0) + 1;
+    }
+    profileCounts[r.profile_name] = (profileCounts[r.profile_name] || 0) + 1;
+    const day = r.created_at.split("T")[0];
+    dailyCounts[day] = (dailyCounts[day] || 0) + 1;
+  }
+
+  const n = totalAssessments || 1;
+  const avgConfirmation = confCount > 0 ? (confSum / confCount).toFixed(1) : "—";
+
+  // Daily chart data for last 30 days
+  const dailyData: { date: string; count: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().split("T")[0];
+    dailyData.push({ date: key, count: dailyCounts[key] || 0 });
+  }
+
+  // Season distribution
+  const seasonData = Object.entries(seasonCounts).map(([name, value]) => ({ name, value }));
+
+  // Confidence distribution
+  const confidenceData = Object.entries(confidenceCounts).map(([name, value]) => ({ name, value }));
+
+  // Top 5 profiles
+  const topProfiles = Object.entries(profileCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name, count]) => ({ name, count }));
+
+  // ── Build user list ─────────────────────────────────────────────
   const userSummaryMap: Record<string, {
     count: number;
     latestSeason: string;
@@ -130,7 +106,7 @@ export default async function AdminPage() {
     latestDate: string;
   }> = {};
 
-  for (const r of userSummaries || []) {
+  for (const r of allResults || []) {
     if (!userSummaryMap[r.user_id]) {
       userSummaryMap[r.user_id] = {
         count: 1,
@@ -150,7 +126,14 @@ export default async function AdminPage() {
     ...summary,
   }));
 
-  // ── Fetch cohort interest submissions ─────────────────────────
+  // ── All assessments for the assessments tab ─────────────────────
+  const assessments = (allResults || []).map(r => ({
+    ...r,
+    email: userMap[r.user_id]?.email || "",
+    name: userMap[r.user_id]?.name || "",
+  }));
+
+  // ── Fetch cohort interest ───────────────────────────────────────
   const { data: cohortInterest } = await adminClient
     .from("cohort_interest")
     .select("*")
@@ -158,22 +141,25 @@ export default async function AdminPage() {
 
   const stats = {
     totalUsers,
-    totalAssessments: totalAssessments || 0,
-    assessmentsThisWeek: assessmentsThisWeek || 0,
-    avgSeason: avgSeason.toFixed(1),
-    avgExpertise: avgExpertise.toFixed(1),
-    avgPassion: avgPassion.toFixed(1),
-    avgBs: avgBs.toFixed(1),
-    mostCommonSeason,
-    mostCommonProfile,
+    totalAssessments,
+    assessmentsThisWeek,
+    avgSeason: (sSum / n / qCounts.season).toFixed(1),
+    avgExpertise: (eSum / n / qCounts.expertise).toFixed(1),
+    avgPassion: (pSum / n / qCounts.passion).toFixed(1),
+    avgBs: (bSum / n / qCounts.bs).toFixed(1),
+    avgConfirmation,
   };
 
   return (
     <AdminClient
       stats={stats}
       users={users}
-      recentAssessments={recentWithUsers}
+      assessments={assessments}
       cohortInterest={cohortInterest || []}
+      dailyData={dailyData}
+      seasonData={seasonData}
+      confidenceData={confidenceData}
+      topProfiles={topProfiles}
     />
   );
 }

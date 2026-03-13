@@ -67,9 +67,16 @@ export default async function ResultsPage({ params }: Props) {
     notFound();
   }
 
-  // Verify the result belongs to this user
+  // Verify the result belongs to this user or viewer is admin
   if (result.user_id !== user.id) {
-    notFound();
+    const { data: viewerProfile } = await adminClient
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .single();
+    if (!viewerProfile?.is_admin) {
+      notFound();
+    }
   }
 
   const profile = lookupProfile(result.season, result.profile_name);
