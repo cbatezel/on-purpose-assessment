@@ -138,6 +138,39 @@ export async function POST(request: Request) {
       console.log("[assessment/submit] Created pdf_job for assessment:", assessmentResult.id);
     }
 
+    // 4. Slack notification (fire and forget)
+    const slackUrl = process.env.SLACK_WEBHOOK_URL;
+    if (slackUrl) {
+      const qCounts = { season: 4, expertise: 8, passion: 7 };
+      const sAvg = (season_score / qCounts.season).toFixed(1);
+      const eAvg = (expertise_score / qCounts.expertise).toFixed(1);
+      const pAvg = (passion_score / qCounts.passion).toFixed(1);
+      const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+
+      fetch(slackUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blocks: [
+            { type: "header", text: { type: "plain_text", text: "New Assessment Completed", emoji: true } },
+            { type: "section", fields: [
+              { type: "mrkdwn", text: `*Name:*\n${name || "—"}` },
+              { type: "mrkdwn", text: `*Email:*\n${email}` },
+            ]},
+            { type: "section", fields: [
+              { type: "mrkdwn", text: `*Season:*\n${season} (${season_confidence || "high"})` },
+              { type: "mrkdwn", text: `*Profile:*\n${profile_name}` },
+            ]},
+            { type: "section", text: { type: "mrkdwn", text: `*Scores:*  Season ${sAvg}/5  •  Expertise ${eAvg}/5  •  Passion ${pAvg}/5` } },
+            { type: "context", elements: [{ type: "mrkdwn", text: now }] },
+            { type: "actions", elements: [
+              { type: "button", text: { type: "plain_text", text: "View in Admin" }, url: `https://onpurposeassessment.com/admin/assessment/${assessmentResult.id}` },
+            ]},
+          ],
+        }),
+      }).catch(() => {});
+    }
+
     return NextResponse.json({ assessment_id: assessmentResult.id });
   } catch (err) {
     console.error("[assessment/submit] Unhandled error:", err);
