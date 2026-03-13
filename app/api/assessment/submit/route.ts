@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { adminClient } from "@/lib/supabase/admin";
 
 function capitalizeName(name: string): string {
@@ -167,10 +168,19 @@ export async function POST(request: Request) {
     }
 
     // 6. Send magic link (fire and forget) — so user gets it after completing assessment
+    // Use anon client (not admin) so Supabase sends the built-in OTP email
     const origin = request.headers.get("origin") || "https://onpurposeassessment.com";
-    adminClient.auth.signInWithOtp({
+    const anonClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+    anonClient.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${origin}/auth/callback` },
+    }).then(({ error: otpErr }) => {
+      if (otpErr) console.error("[assessment/submit] magic link error:", otpErr.message);
+      else console.log("[assessment/submit] magic link sent to:", email);
     }).catch(() => {});
 
     // 7. Slack notification (fire and forget)
