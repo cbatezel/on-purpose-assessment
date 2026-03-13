@@ -490,6 +490,16 @@ export default function App() {
   // Track whether auto-advance is locked (prevents double-fire)
   const [advancing, setAdvancing] = useState(false);
 
+  // Detect touch/mobile device (no hover capability)
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(()=>{
+    const mq = window.matchMedia("(hover: none)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return ()=>mq.removeEventListener("change", handler);
+  },[]);
+
   // Check for existing auth session on mount, prefill from previous assessment
   useEffect(()=>{
     const supabase = createClient();
@@ -919,10 +929,10 @@ export default function App() {
                 // Skip demographics if we already have profile data
                 setStep(hasProfile ? 3 : 2);
               }} disabled={!can1}>Continue</PrimaryBtn>
-              <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
+              {!isMobile && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
                 Press Enter ↵ to continue
-              </div>
+              </div>}
               <PoweredBy/>
             </Screen>
           </>
@@ -934,7 +944,6 @@ export default function App() {
             <TopBar onBack={()=>setStep(skipsEmailStep ? 0 : 1)} label="A bit of context"/>
             <Screen>
               <SectionTitle>Tell us a little more about where you are.</SectionTitle>
-              <BodyText>This helps us personalize your results. It won&apos;t change your scores.</BodyText>
               <Card>
                 {/* Date of birth — three dropdowns, no native date input */}
                 <div style={fieldGap}>
@@ -981,10 +990,10 @@ export default function App() {
                   onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,vocation:e.target.value}))}/>
               </Card>
               <PrimaryBtn onClick={()=>setStep(3)} disabled={!can2}>Continue</PrimaryBtn>
-              <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
+              {!isMobile && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
                 Press Enter ↵ to continue
-              </div>
+              </div>}
               <PoweredBy/>
             </Screen>
           </>
@@ -1027,10 +1036,10 @@ export default function App() {
                 })}
               </div>
               <PrimaryBtn onClick={()=>setStep(4)} disabled={!can3}>Continue</PrimaryBtn>
-              <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
+              {!isMobile && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
                 Press Enter ↵ to continue
-              </div>
+              </div>}
               <PoweredBy/>
             </Screen>
           </>
@@ -1056,8 +1065,8 @@ export default function App() {
                       transition:"all 0.15s",userSelect:"none",
                     }}>
                     <span style={{fontSize:15,lineHeight:1.6,color:C.ink}}>{opt.text}</span>
-                    <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",fontSize:12,
-                      color:C.inkLight,flexShrink:0}}>{i+1}</span>
+                    {!isMobile && <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",fontSize:12,
+                      color:C.inkLight,flexShrink:0}}>{i+1}</span>}
                   </div>
                 );
               })}
@@ -1066,10 +1075,10 @@ export default function App() {
                   Start the Assessment
                 </PrimaryBtn>
               </div>
-              <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
+              {!isMobile && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
                 Press 1–4 to select · Enter ↵ to continue
-              </div>
+              </div>}
               <PoweredBy/>
             </Screen>
           </>
@@ -1123,8 +1132,8 @@ export default function App() {
                         {on && <div style={{width:8,height:8,borderRadius:"50%",background:"white"}}/>}
                       </div>
                       <span style={{fontSize:15,color:C.ink}}>{label}</span>
-                      <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",
-                        fontSize:12,color:C.inkLight}}>{i+1}</span>
+                      {!isMobile && <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",
+                        fontSize:12,color:C.inkLight}}>{i+1}</span>}
                     </div>
                   );
                 })}
@@ -1259,8 +1268,8 @@ export default function App() {
                             {on && <div style={{width:8,height:8,borderRadius:"50%",background:"white"}}/>}
                           </div>
                           <span style={{fontSize:15,color:C.ink}}>{label}</span>
-                          <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",
-                            fontSize:12,color:C.inkLight}}>{i+1}</span>
+                          {!isMobile && <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",
+                            fontSize:12,color:C.inkLight}}>{i+1}</span>}
                         </div>
                       );
                     })}
