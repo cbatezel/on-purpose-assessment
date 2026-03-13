@@ -366,6 +366,74 @@ export default async function AssessmentDetailPage({
             } />
           </SectionCard>
 
+          {/* Beta Feedback — prominent placement */}
+          {(assessment.feedback_accuracy || assessment.feedback_new_insight !== null || assessment.feedback_open_text) ? (
+            <div style={{
+              background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
+              padding: "24px 28px", marginBottom: 20,
+              borderLeft: `4px solid ${C.sage}`,
+            }}>
+              <h3 style={{
+                fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 600,
+                color: C.ink, marginBottom: 16, paddingBottom: 12,
+                borderBottom: `1px solid ${C.border}`,
+              }}>Feedback</h3>
+
+              <div style={{ display: "flex", gap: 24, marginBottom: assessment.feedback_open_text ? 16 : 0 }}>
+                {assessment.feedback_accuracy && (
+                  <div>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: C.inkLight,
+                      textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Accuracy</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, fontWeight: 700, color: C.ink }}>
+                        {assessment.feedback_accuracy}
+                      </span>
+                      <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: C.inkLight }}>/5</span>
+                      <span style={{ display: "inline-flex", gap: 3, marginLeft: 4 }}>
+                        {[1,2,3,4,5].map(n => (
+                          <span key={n} style={{ width: 8, height: 8, borderRadius: "50%", display: "inline-block",
+                            background: n <= assessment.feedback_accuracy ? C.sage : C.border }} />
+                        ))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {assessment.feedback_new_insight !== null && assessment.feedback_new_insight !== undefined && (
+                  <div>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: C.inkLight,
+                      textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>New Insight</div>
+                    <span style={{
+                      display: "inline-block", padding: "4px 12px", borderRadius: 6,
+                      background: assessment.feedback_new_insight ? C.sageLight : C.redLight,
+                      fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600,
+                      color: assessment.feedback_new_insight ? C.sage : C.red,
+                    }}>{assessment.feedback_new_insight ? "Yes" : "No"}</span>
+                  </div>
+                )}
+              </div>
+
+              {assessment.feedback_open_text && (
+                <div style={{
+                  background: C.bg, borderRadius: 10, padding: "16px 20px", marginTop: 4,
+                  borderLeft: `3px solid ${C.sage}`,
+                }}>
+                  <p style={{
+                    fontFamily: "'Playfair Display',serif", fontStyle: "italic",
+                    fontSize: 16, lineHeight: 1.6, color: C.inkMid, margin: 0,
+                  }}>&ldquo;{assessment.feedback_open_text}&rdquo;</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
+              padding: "16px 28px", marginBottom: 20, opacity: 0.6,
+            }}>
+              <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: C.inkLight,
+                textTransform: "uppercase", letterSpacing: "0.06em" }}>No feedback submitted</span>
+            </div>
+          )}
+
           {/* Season Determination */}
           <SectionCard title="Season Determination">
             <InfoRow label="Presumed Season (from age)" value={
@@ -463,43 +531,6 @@ export default async function AssessmentDetailPage({
             <InfoRow label="Profile Name" value={assessment.profile_name || "--"} />
             <InfoRow label="Season Cohort" value={assessment.season_cohort || "--"} />
           </SectionCard>
-
-          {/* Beta Feedback */}
-          {(assessment.feedback_accuracy || assessment.feedback_new_insight !== null || assessment.feedback_open_text) && (
-            <SectionCard title="Beta Feedback">
-              {assessment.feedback_accuracy && (
-                <InfoRow label="Accuracy" value={
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <ScoreBar score={assessment.feedback_accuracy} />
-                  </span>
-                } />
-              )}
-              {assessment.feedback_new_insight !== null && assessment.feedback_new_insight !== undefined && (
-                <InfoRow label="New Insight" value={
-                  <span style={{
-                    display: "inline-block", padding: "3px 8px", borderRadius: 5,
-                    background: assessment.feedback_new_insight ? C.sageLight : C.redLight,
-                    fontFamily: "'DM Mono',monospace", fontSize: 11,
-                    letterSpacing: "0.06em", textTransform: "uppercase",
-                    color: assessment.feedback_new_insight ? C.sage : C.red, fontWeight: 500,
-                  }}>{assessment.feedback_new_insight ? "Yes" : "No"}</span>
-                } />
-              )}
-              {assessment.feedback_open_text && (
-                <div style={{ paddingTop: 12 }}>
-                  <span style={{
-                    fontFamily: "'DM Mono',monospace", fontSize: 11,
-                    color: C.inkLight, textTransform: "uppercase",
-                    letterSpacing: "0.06em", display: "block", marginBottom: 8,
-                  }}>Open Response</span>
-                  <p style={{
-                    fontFamily: "'Playfair Display',serif", fontStyle: "italic",
-                    fontSize: 15, lineHeight: 1.6, color: C.inkMid,
-                  }}>&ldquo;{assessment.feedback_open_text}&rdquo;</p>
-                </div>
-              )}
-            </SectionCard>
-          )}
 
           {/* Life Events */}
           <SectionCard title="Life Events">

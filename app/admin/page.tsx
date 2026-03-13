@@ -24,7 +24,7 @@ export default async function AdminPage() {
   // ── Fetch all assessment results ────────────────────────────────
   const { data: allResults } = await adminClient
     .from("assessment_results")
-    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score, season_confirmation_score, birth_year, gender, life_events, feedback_accuracy")
+    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score, season_confirmation_score, birth_year, gender, life_events, feedback_accuracy, feedback_new_insight, feedback_open_text")
     .order("created_at", { ascending: false });
 
   // ── Build user map from auth ────────────────────────────────────
@@ -296,6 +296,32 @@ export default async function AdminPage() {
     count: sessions.filter(f.test).length,
   }));
 
+  // ── Feedback stats ───────────────────────────────────────────
+  let fbAccuracySum = 0, fbAccuracyCount = 0, fbInsightYes = 0, fbInsightTotal = 0, fbTotalCount = 0;
+  const recentFeedback: { name: string; season: string; profile_name: string; text: string; created_at: string }[] = [];
+  for (const r of allResults || []) {
+    if (r.feedback_accuracy != null || r.feedback_new_insight != null || r.feedback_open_text) {
+      fbTotalCount++;
+      if (r.feedback_accuracy != null) { fbAccuracySum += r.feedback_accuracy; fbAccuracyCount++; }
+      if (r.feedback_new_insight != null) { fbInsightTotal++; if (r.feedback_new_insight) fbInsightYes++; }
+      if (r.feedback_open_text && recentFeedback.length < 10) {
+        recentFeedback.push({
+          name: userMap[r.user_id]?.name || userMap[r.user_id]?.email || "Anonymous",
+          season: r.season,
+          profile_name: r.profile_name,
+          text: r.feedback_open_text,
+          created_at: r.created_at,
+        });
+      }
+    }
+  }
+  const feedbackStats = {
+    avgAccuracy: fbAccuracyCount > 0 ? (fbAccuracySum / fbAccuracyCount).toFixed(1) : null,
+    insightYesRate: fbInsightTotal > 0 ? Math.round((fbInsightYes / fbInsightTotal) * 100) : null,
+    totalFeedback: fbTotalCount,
+    totalAssessments,
+  };
+
   return (
     <AdminClient
       stats={{...stats, completionRate}}
@@ -316,6 +342,8 @@ export default async function AdminPage() {
       locationData={locationData}
       referralData={referralData}
       funnelData={funnelData}
+      feedbackStats={feedbackStats}
+      recentFeedback={recentFeedback}
       incompleteSessions={incompleteSessions.slice(0, 100).map(s => ({
         email: s.email || "—",
         furthest_step: s.furthest_step || "email",
