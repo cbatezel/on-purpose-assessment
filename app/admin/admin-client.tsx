@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ const seasonColors: Record<string, string> = {
 };
 const confColors: Record<string, string> = { high: "#6B7D6A", medium: "#E65100", low: "#B22234" };
 const PIE_COLORS = ["#C4956A","#6B8F71","#8B2635","#2D3A5E","#9A9590"];
+const GENDER_COLORS: Record<string, string> = { Male: "#2D3A5E", Female: "#C4956A", "Prefer not to say": "#9A9590" };
 
 const globalCss = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap');
@@ -72,6 +73,21 @@ function formatDateTime(iso: string) {
 }
 function toAvg(score: number, count: number) { return count ? (score / count).toFixed(1) : "—"; }
 
+function timeAgo(iso: string): string {
+  const now = Date.now();
+  const then = new Date(iso).getTime();
+  const diff = now - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  return formatDate(iso);
+}
+
 function SeasonBadge({ season }: { season: string }) {
   const accent = seasonColors[season] || C.sage;
   return (
@@ -101,29 +117,18 @@ function ConfidenceBadge({ confidence }: { confidence: string | null }) {
   );
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return (
-    <div style={{
-      background:C.white,border:`1px solid ${C.border}`,borderRadius:12,
-      padding:"18px 20px",flex:1,minWidth:130,
-    }}>
-      <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
-        textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>{label}</div>
-      <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:26,
-        fontWeight:700,color:C.ink,lineHeight:1.1}}>{value}</div>
-      {sub && <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight,marginTop:4}}>{sub}</div>}
-    </div>
-  );
-}
-
 type Tab = "overview" | "users" | "assessments" | "cohort";
+type TimeRange = "7d" | "30d" | "90d" | "all";
 
 export default function AdminClient({
   stats, users, assessments, cohortInterest,
   dailyData, seasonData, confidenceData, topProfiles,
+  ageData, genderData, lifeEventData, allDailyCounts, cohortUserIds,
 }: {
   stats: Stats; users: UserRow[]; assessments: Assessment[]; cohortInterest: CohortInterest[];
   dailyData: ChartPoint[]; seasonData: PiePoint[]; confidenceData: PiePoint[]; topProfiles: BarPoint[];
+  ageData: BarPoint[]; genderData: PiePoint[]; lifeEventData: BarPoint[];
+  allDailyCounts: Record<string, number>; cohortUserIds: string[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
@@ -137,12 +142,15 @@ export default function AdminClient({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
   const [saving, setSaving] = useState(false);
+  const [timeRange, setTimeRange] = useState<TimeRange>("30d");
 
   // Assessments tab state
   const [aPage, setAPage] = useState(0);
   const [aFilter, setAFilter] = useState({ season: "", confidence: "" });
   const [aSort, setASort] = useState<{ key: string; asc: boolean }>({ key: "created_at", asc: false });
   const PER_PAGE = 20;
+
+  const cohortUserIdSet = useMemo(() => new Set(cohortUserIds), [cohortUserIds]);
 
   const filteredUsers = search.trim()
     ? users.filter(u => {
@@ -164,6 +172,19 @@ export default function AdminClient({
   });
   const totalPages = Math.ceil(filteredAssessments.length / PER_PAGE);
   const pagedAssessments = filteredAssessments.slice(aPage * PER_PAGE, (aPage + 1) * PER_PAGE);
+
+  // Volume trend data for selected time range
+  const volumeData = useMemo(() => {
+    const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : timeRange === "90d" ? 90 : 365;
+    const data: ChartPoint[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split("T")[0];
+      data.push({ date: key, count: allDailyCounts[key] || 0 });
+    }
+    return data;
+  }, [timeRange, allDailyCounts]);
 
   const handleSortToggle = (key: string) => {
     setASort(prev => prev.key === key ? { key, asc: !prev.asc } : { key, asc: true });
@@ -237,6 +258,13 @@ export default function AdminClient({
       }).slice(0, 8)
     : [];
 
+  const handleSignOut = async () => {
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
   const tabs: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
     { key: "users", label: "Users" },
@@ -244,93 +272,125 @@ export default function AdminClient({
     { key: "cohort", label: "Cohort Interest" },
   ];
 
+  // Activity feed — last 15 assessments
+  const feedItems = assessments.slice(0, 15);
+
   return (
     <>
       <style>{globalCss}</style>
       <div style={{minHeight:"100vh",background:C.bg}}>
         <div style={{maxWidth:960,margin:"0 auto",padding:"24px 24px 72px"}}>
 
-          {/* Back arrow */}
-          <div style={{marginBottom:20}}>
+          {/* Top bar: back + tabs + sign out */}
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:32}}>
             <Link href="/dashboard" style={{
               display:"inline-flex",alignItems:"center",justifyContent:"center",
-              width:36,height:36,borderRadius:"50%",
+              width:32,height:32,borderRadius:"50%",
               background:"rgba(178,34,52,0.09)",border:"none",
               textDecoration:"none",color:"#B22234",transition:"background 0.15s",
+              flexShrink:0,
             }}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
                 <path d="M11 14L6 9l5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </Link>
-          </div>
-
-          {/* Header */}
-          <div style={{marginBottom:28}}>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.12em",
-              textTransform:"uppercase",color:C.sage,marginBottom:8}}>Admin</div>
-            <h1 style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:"clamp(24px,5vw,32px)",
-              fontWeight:700,color:C.ink,lineHeight:1.2}}>
-              Assessment Overview<span style={{color:C.red}}>.</span>
-            </h1>
-          </div>
-
-          {/* Tabs */}
-          <div style={{display:"flex",gap:4,marginBottom:28,borderBottom:`1px solid ${C.border}`,paddingBottom:0}}>
-            {tabs.map(t => (
-              <button key={t.key} onClick={()=>{setTab(t.key);setAPage(0);}} style={{
-                fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.06em",
-                textTransform:"uppercase",padding:"10px 16px",border:"none",
-                background:"transparent",cursor:"pointer",
-                color:tab===t.key?C.red:C.inkLight,
-                borderBottom:tab===t.key?`2px solid ${C.red}`:"2px solid transparent",
-                fontWeight:tab===t.key?600:400,transition:"all 0.15s",marginBottom:-1,
-              }}>{t.label}</button>
-            ))}
+            <div style={{display:"flex",gap:2,flex:1}}>
+              {tabs.map(t => (
+                <button key={t.key} onClick={()=>{setTab(t.key);setAPage(0);}} style={{
+                  fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.06em",
+                  textTransform:"uppercase",padding:"8px 14px",border:"none",
+                  background:tab===t.key?`${C.red}10`:"transparent",
+                  borderRadius:6,cursor:"pointer",
+                  color:tab===t.key?C.red:C.inkLight,
+                  fontWeight:tab===t.key?600:400,transition:"all 0.15s",
+                }}>{t.label}</button>
+              ))}
+            </div>
+            <button onClick={handleSignOut} style={{
+              fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.06em",
+              color:C.inkLight,background:"none",border:"none",cursor:"pointer",
+              padding:"6px 8px",transition:"color 0.15s",flexShrink:0,
+            }}>Sign Out</button>
           </div>
 
           {/* ══ OVERVIEW TAB ══════════════════════════════════════ */}
           {tab === "overview" && (
             <>
-              <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:16}}>
-                <StatCard label="Total Users" value={stats.totalUsers} />
-                <StatCard label="Assessments" value={stats.totalAssessments} />
-                <StatCard label="This Week" value={stats.assessmentsThisWeek} />
-                <StatCard label="Avg Confirmation" value={stats.avgConfirmation} sub="/5" />
-              </div>
-              <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:32}}>
-                <StatCard label="Avg Season" value={stats.avgSeason} sub="/5" />
-                <StatCard label="Avg Expertise" value={stats.avgExpertise} sub="/5" />
-                <StatCard label="Avg Passion" value={stats.avgPassion} sub="/5" />
-                <StatCard label="Avg BS" value={stats.avgBs} sub="/5" />
-              </div>
-
-              {/* Line chart: assessments per day */}
-              <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:12,padding:"20px 20px 12px",marginBottom:24}}>
-                <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
-                  textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Assessments per Day (30 days)</div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={dailyData}>
-                    <XAxis dataKey="date" tick={{fontSize:10,fontFamily:"'DM Mono',monospace",fill:C.inkLight}}
-                      tickFormatter={v => v.slice(5)} interval="preserveStartEnd" />
-                    <YAxis tick={{fontSize:10,fontFamily:"'DM Mono',monospace",fill:C.inkLight}} allowDecimals={false} width={30} />
-                    <Tooltip contentStyle={{fontFamily:"'DM Sans',sans-serif",fontSize:12,borderRadius:8,border:`1px solid ${C.border}`}}
-                      labelFormatter={v => new Date(v+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} />
-                    <Line type="monotone" dataKey="count" stroke={C.red} strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
+              {/* Hero numbers */}
+              <div style={{display:"flex",gap:48,marginBottom:40,paddingLeft:4}}>
+                <div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>Total Assessments</div>
+                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:56,
+                    fontWeight:700,color:C.ink,lineHeight:1}}>{stats.totalAssessments}</div>
+                </div>
+                <div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>This Week</div>
+                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:56,
+                    fontWeight:700,color:C.red,lineHeight:1}}>{stats.assessmentsThisWeek}</div>
+                </div>
               </div>
 
-              {/* Charts row: season + confidence donuts + top profiles bar */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
+              {/* Live Activity Feed */}
+              <div style={{marginBottom:40}}>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                  textTransform:"uppercase",color:C.sage,marginBottom:14}}>Recent Activity</div>
+                <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  {feedItems.map(a => {
+                    const accent = seasonColors[a.season] || C.sage;
+                    const hasCohort = cohortUserIdSet.has(a.user_id);
+                    return (
+                      <Link key={a.id} href={`/admin/assessment/${a.id}`} style={{textDecoration:"none"}}>
+                        <div style={{
+                          display:"flex",alignItems:"center",gap:12,
+                          padding:"11px 16px",borderRadius:8,
+                          cursor:"pointer",transition:"background 0.12s",
+                        }}
+                          onMouseEnter={e=>e.currentTarget.style.background=C.white}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                        >
+                          {/* Season dot */}
+                          <div style={{width:8,height:8,borderRadius:"50%",background:accent,flexShrink:0}} />
+                          {/* Name */}
+                          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,
+                            color:C.ink,minWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {a.name||"—"}
+                          </span>
+                          {/* Season badge */}
+                          <SeasonBadge season={a.season} />
+                          {/* Profile */}
+                          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:C.inkMid,
+                            flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {a.profile_name}
+                          </span>
+                          {/* Cohort fire badge */}
+                          {hasCohort && (
+                            <span title="Submitted cohort interest" style={{fontSize:14,flexShrink:0}}>🔥</span>
+                          )}
+                          {/* Time ago */}
+                          <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight,
+                            flexShrink:0,textAlign:"right",minWidth:70}}>
+                            {timeAgo(a.created_at)}
+                          </span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Insights Row: Season donut + Demographics */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:48}}>
                 {/* Season distribution */}
-                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px"}}>
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
                   <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
-                    textTransform:"uppercase",color:C.inkLight,marginBottom:8}}>Season Distribution</div>
-                  <ResponsiveContainer width="100%" height={160}>
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Season Distribution</div>
+                  <ResponsiveContainer width="100%" height={200}>
                     <PieChart>
-                      <Pie data={seasonData} dataKey="value" cx="50%" cy="50%" outerRadius={55} innerRadius={30}
+                      <Pie data={seasonData} dataKey="value" cx="50%" cy="50%" outerRadius={70} innerRadius={40}
                         paddingAngle={2} label={({name,percent}: {name?:string;percent?:number})=>`${name||""} ${((percent||0)*100).toFixed(0)}%`}
-                        style={{fontSize:9,fontFamily:"'DM Mono',monospace"}}>
+                        style={{fontSize:10,fontFamily:"'DM Mono',monospace"}}>
                         {seasonData.map((entry, i) => (
                           <Cell key={i} fill={seasonColors[entry.name] || PIE_COLORS[i % PIE_COLORS.length]} />
                         ))}
@@ -339,34 +399,132 @@ export default function AdminClient({
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                {/* Confidence distribution */}
-                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px"}}>
+
+                {/* Demographics */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
                   <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
-                    textTransform:"uppercase",color:C.inkLight,marginBottom:8}}>Confidence Levels</div>
-                  <ResponsiveContainer width="100%" height={160}>
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Demographics</div>
+
+                  {/* Age distribution bars */}
+                  {ageData.length > 0 && (
+                    <div style={{marginBottom:18}}>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.06em",
+                        textTransform:"uppercase",color:C.inkLight,marginBottom:8}}>Age</div>
+                      {(() => {
+                        const maxCount = Math.max(...ageData.map(d => d.count));
+                        return ageData.map(d => (
+                          <div key={d.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkMid,
+                              width:28,textAlign:"right",flexShrink:0}}>{d.name}</span>
+                            <div style={{flex:1,height:14,borderRadius:3,background:`${C.border}60`,overflow:"hidden"}}>
+                              <div style={{
+                                height:"100%",borderRadius:3,
+                                width:`${(d.count / maxCount) * 100}%`,
+                                background:`linear-gradient(90deg, ${C.sage}, ${C.sage}cc)`,
+                                transition:"width 0.4s ease-out",
+                              }} />
+                            </div>
+                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight,
+                              width:24,flexShrink:0}}>{d.count}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Gender breakdown */}
+                  {genderData.length > 0 && (
+                    <div>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.06em",
+                        textTransform:"uppercase",color:C.inkLight,marginBottom:8}}>Gender</div>
+                      <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+                        {genderData.map(g => (
+                          <div key={g.name} style={{display:"flex",alignItems:"center",gap:6}}>
+                            <div style={{width:8,height:8,borderRadius:"50%",
+                              background:GENDER_COLORS[g.name] || C.inkLight}} />
+                            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.inkMid}}>
+                              {g.name}
+                            </span>
+                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight}}>
+                              {g.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Operator Data (below the fold) ───────────────── */}
+              <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                textTransform:"uppercase",color:C.inkLight,marginBottom:16}}>Operator Data</div>
+
+              {/* Volume trend with time range toggle */}
+              <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,
+                padding:"20px 20px 12px",marginBottom:20}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight}}>Assessment Volume</div>
+                  <div style={{display:"flex",gap:2}}>
+                    {(["7d","30d","90d","all"] as TimeRange[]).map(r => (
+                      <button key={r} onClick={()=>setTimeRange(r)} style={{
+                        fontFamily:"'DM Mono',monospace",fontSize:10,padding:"4px 10px",
+                        border:"none",borderRadius:4,cursor:"pointer",
+                        background:timeRange===r?`${C.red}12`:"transparent",
+                        color:timeRange===r?C.red:C.inkLight,
+                        fontWeight:timeRange===r?600:400,transition:"all 0.15s",
+                      }}>{r}</button>
+                    ))}
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={volumeData}>
+                    <XAxis dataKey="date" tick={{fontSize:9,fontFamily:"'DM Mono',monospace",fill:C.inkLight}}
+                      tickFormatter={v => v.slice(5)} interval="preserveStartEnd" />
+                    <YAxis tick={{fontSize:9,fontFamily:"'DM Mono',monospace",fill:C.inkLight}} allowDecimals={false} width={24} />
+                    <Tooltip contentStyle={{fontFamily:"'DM Sans',sans-serif",fontSize:12,borderRadius:8,border:`1px solid ${C.border}`}}
+                      labelFormatter={v => new Date(v+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} />
+                    <Line type="monotone" dataKey="count" stroke={C.red} strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Life events + Confidence row */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24}}>
+                {/* Top life events */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"20px"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Top Life Events</div>
+                  {lifeEventData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={lifeEventData} layout="vertical" margin={{left:0,right:8}}>
+                        <XAxis type="number" tick={{fontSize:9,fontFamily:"'DM Mono',monospace",fill:C.inkLight}} allowDecimals={false} />
+                        <YAxis type="category" dataKey="name" tick={{fontSize:9,fontFamily:"'DM Mono',monospace",fill:C.inkMid}} width={120} />
+                        <Tooltip contentStyle={{fontFamily:"'DM Sans',sans-serif",fontSize:12,borderRadius:8}} />
+                        <Bar dataKey="count" fill={seasonColors.Identity} radius={[0,4,4,0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p style={{fontSize:13,color:C.inkLight}}>No life events data yet.</p>
+                  )}
+                </div>
+
+                {/* Confidence breakdown */}
+                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"20px"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>Confidence Breakdown</div>
+                  <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
-                      <Pie data={confidenceData} dataKey="value" cx="50%" cy="50%" outerRadius={55} innerRadius={30}
+                      <Pie data={confidenceData} dataKey="value" cx="50%" cy="50%" outerRadius={70} innerRadius={35}
                         paddingAngle={2} label={({name,percent}: {name?:string;percent?:number})=>`${name||""} ${((percent||0)*100).toFixed(0)}%`}
-                        style={{fontSize:9,fontFamily:"'DM Mono',monospace"}}>
+                        style={{fontSize:10,fontFamily:"'DM Mono',monospace"}}>
                         {confidenceData.map((entry, i) => (
                           <Cell key={i} fill={confColors[entry.name] || PIE_COLORS[i % PIE_COLORS.length]} />
                         ))}
                       </Pie>
                       <Tooltip contentStyle={{fontFamily:"'DM Sans',sans-serif",fontSize:12,borderRadius:8}} />
                     </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                {/* Top profiles */}
-                <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px"}}>
-                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
-                    textTransform:"uppercase",color:C.inkLight,marginBottom:8}}>Top 5 Profiles</div>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <BarChart data={topProfiles} layout="vertical" margin={{left:0,right:8}}>
-                      <XAxis type="number" tick={{fontSize:10,fontFamily:"'DM Mono',monospace",fill:C.inkLight}} allowDecimals={false} />
-                      <YAxis type="category" dataKey="name" tick={{fontSize:9,fontFamily:"'DM Mono',monospace",fill:C.inkMid}} width={90} />
-                      <Tooltip contentStyle={{fontFamily:"'DM Sans',sans-serif",fontSize:12,borderRadius:8}} />
-                      <Bar dataKey="count" fill={C.sage} radius={[0,4,4,0]} />
-                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>

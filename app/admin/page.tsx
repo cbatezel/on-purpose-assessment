@@ -24,7 +24,7 @@ export default async function AdminPage() {
   // ── Fetch all assessment results ────────────────────────────────
   const { data: allResults } = await adminClient
     .from("assessment_results")
-    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score, season_confirmation_score")
+    .select("id, created_at, user_id, season, profile_name, season_confidence, season_score, expertise_score, passion_score, bs_score, season_confirmation_score, birth_year, gender, life_events")
     .order("created_at", { ascending: false });
 
   // ── Build user map from auth ────────────────────────────────────
@@ -150,6 +150,53 @@ export default async function AdminPage() {
     avgConfirmation,
   };
 
+  // ── Demographics data ─────────────────────────────────────────
+  const currentYear = new Date().getFullYear();
+  const ageBuckets: Record<string, number> = {};
+  const genderCounts: Record<string, number> = {};
+  for (const r of allResults || []) {
+    if (r.birth_year && r.birth_year > 1920 && r.birth_year <= currentYear) {
+      const age = currentYear - r.birth_year;
+      const decade = `${Math.floor(age / 10) * 10}s`;
+      ageBuckets[decade] = (ageBuckets[decade] || 0) + 1;
+    }
+    if (r.gender) {
+      genderCounts[r.gender] = (genderCounts[r.gender] || 0) + 1;
+    }
+  }
+  const ageData = Object.entries(ageBuckets)
+    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+    .map(([name, count]) => ({ name, count }));
+  const genderData = Object.entries(genderCounts)
+    .map(([name, value]) => ({ name, value }));
+
+  // ── Life events data ──────────────────────────────────────────
+  const lifeEventCounts: Record<string, number> = {};
+  for (const r of allResults || []) {
+    const events: string[] = r.life_events || [];
+    for (const e of events) {
+      if (e && e !== "None of these") {
+        lifeEventCounts[e] = (lifeEventCounts[e] || 0) + 1;
+      }
+    }
+  }
+  const lifeEventData = Object.entries(lifeEventCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([name, count]) => ({ name, count }));
+
+  // ── All daily counts (for flexible time range) ────────────────
+  const allDailyCounts: Record<string, number> = {};
+  for (const r of allResults || []) {
+    const day = r.created_at.split("T")[0];
+    allDailyCounts[day] = (allDailyCounts[day] || 0) + 1;
+  }
+
+  // ── Cohort interest user IDs for fire badge ───────────────────
+  const cohortUserIds = (cohortInterest || [])
+    .filter(ci => ci.user_id)
+    .map(ci => ci.user_id as string);
+
   return (
     <AdminClient
       stats={stats}
@@ -160,6 +207,11 @@ export default async function AdminPage() {
       seasonData={seasonData}
       confidenceData={confidenceData}
       topProfiles={topProfiles}
+      ageData={ageData}
+      genderData={genderData}
+      lifeEventData={lifeEventData}
+      allDailyCounts={allDailyCounts}
+      cohortUserIds={cohortUserIds}
     />
   );
 }
