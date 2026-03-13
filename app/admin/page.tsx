@@ -298,21 +298,22 @@ export default async function AdminPage() {
 
   // ── Feedback stats ───────────────────────────────────────────
   let fbAccuracySum = 0, fbAccuracyCount = 0, fbInsightYes = 0, fbInsightTotal = 0, fbTotalCount = 0;
-  const recentFeedback: { name: string; season: string; profile_name: string; text: string; created_at: string }[] = [];
+  const allFeedback: { id: string; name: string; season: string; profile_name: string; accuracy: number | null; new_insight: boolean | null; text: string | null; created_at: string }[] = [];
   for (const r of allResults || []) {
     if (r.feedback_accuracy != null || r.feedback_new_insight != null || r.feedback_open_text) {
       fbTotalCount++;
       if (r.feedback_accuracy != null) { fbAccuracySum += r.feedback_accuracy; fbAccuracyCount++; }
       if (r.feedback_new_insight != null) { fbInsightTotal++; if (r.feedback_new_insight) fbInsightYes++; }
-      if (r.feedback_open_text && recentFeedback.length < 10) {
-        recentFeedback.push({
-          name: userMap[r.user_id]?.name || userMap[r.user_id]?.email || "Anonymous",
-          season: r.season,
-          profile_name: r.profile_name,
-          text: r.feedback_open_text,
-          created_at: r.created_at,
-        });
-      }
+      allFeedback.push({
+        id: r.id,
+        name: userMap[r.user_id]?.name || userMap[r.user_id]?.email || "Anonymous",
+        season: r.season,
+        profile_name: r.profile_name,
+        accuracy: r.feedback_accuracy ?? null,
+        new_insight: r.feedback_new_insight ?? null,
+        text: r.feedback_open_text || null,
+        created_at: r.created_at,
+      });
     }
   }
   const feedbackStats = {
@@ -343,7 +344,7 @@ export default async function AdminPage() {
       referralData={referralData}
       funnelData={funnelData}
       feedbackStats={feedbackStats}
-      recentFeedback={recentFeedback}
+      allFeedback={allFeedback}
       incompleteSessions={incompleteSessions.slice(0, 100).map(s => ({
         email: s.email || "—",
         furthest_step: s.furthest_step || "email",

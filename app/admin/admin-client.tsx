@@ -72,8 +72,9 @@ interface FeedbackStats {
   totalAssessments: number;
 }
 
-interface RecentFeedback {
-  name: string; season: string; profile_name: string; text: string; created_at: string;
+interface FeedbackRow {
+  id: string; name: string; season: string; profile_name: string;
+  accuracy: number | null; new_insight: boolean | null; text: string | null; created_at: string;
 }
 
 interface ChartPoint { date: string; count: number }
@@ -136,7 +137,7 @@ function ConfidenceBadge({ confidence }: { confidence: string | null }) {
   );
 }
 
-type Tab = "overview" | "users" | "assessments" | "cohort";
+type Tab = "overview" | "users" | "assessments" | "feedback" | "cohort";
 type TimeRange = "7d" | "30d" | "90d" | "all";
 
 const DEVICE_COLORS: Record<string, string> = { mobile: "#8B2635", desktop: "#2D3A5E", tablet: "#C4956A", unknown: "#9A9590" };
@@ -146,7 +147,7 @@ export default function AdminClient({
   dailyData, seasonData, confidenceData, topProfiles,
   ageData, genderData, lifeEventData, allDailyCounts, cohortUserIds,
   avgTimeToComplete, deviceData, locationData, referralData, funnelData, incompleteSessions,
-  feedbackStats, recentFeedback,
+  feedbackStats, allFeedback,
 }: {
   stats: Stats; users: UserRow[]; assessments: Assessment[]; cohortInterest: CohortInterest[];
   dailyData: ChartPoint[]; seasonData: PiePoint[]; confidenceData: PiePoint[]; topProfiles: BarPoint[];
@@ -154,7 +155,7 @@ export default function AdminClient({
   allDailyCounts: Record<string, number>; cohortUserIds: string[];
   avgTimeToComplete: number | null; deviceData: PiePoint[]; locationData: BarPoint[];
   referralData: BarPoint[]; funnelData: FunnelStep[]; incompleteSessions: IncompleteSession[];
-  feedbackStats: FeedbackStats; recentFeedback: RecentFeedback[];
+  feedbackStats: FeedbackStats; allFeedback: FeedbackRow[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
@@ -295,6 +296,7 @@ export default function AdminClient({
     { key: "overview", label: "Overview" },
     { key: "users", label: "Users" },
     { key: "assessments", label: "Assessments" },
+    { key: "feedback", label: "Feedback" },
     { key: "cohort", label: "Cohort Interest" },
   ];
 
@@ -633,79 +635,39 @@ export default function AdminClient({
                 </div>
               </div>
 
-              {/* ── Feedback section ── */}
-              <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"20px 24px",marginBottom:24}}>
-                <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
-                  textTransform:"uppercase",color:C.inkLight,marginBottom:16}}>Feedback</div>
-
-                {feedbackStats.totalFeedback === 0 ? (
-                  <p style={{fontSize:13,color:C.inkLight}}>No feedback submitted yet.</p>
-                ) : (
-                  <>
-                    {/* Stats row */}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:20}}>
-                      <div style={{textAlign:"center"}}>
-                        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:700,color:C.ink}}>
-                          {feedbackStats.avgAccuracy || "—"}<span style={{fontSize:14,fontWeight:400,color:C.inkLight}}>/5</span>
-                        </div>
-                        <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight,
-                          textTransform:"uppercase",letterSpacing:"0.06em",marginTop:2}}>Avg Accuracy</div>
-                      </div>
-                      <div style={{textAlign:"center"}}>
-                        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:700,color:C.ink}}>
-                          {feedbackStats.insightYesRate != null ? `${feedbackStats.insightYesRate}%` : "—"}
-                        </div>
-                        <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight,
-                          textTransform:"uppercase",letterSpacing:"0.06em",marginTop:2}}>Said &ldquo;New Insight&rdquo;</div>
-                      </div>
-                      <div style={{textAlign:"center"}}>
-                        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:700,color:C.ink}}>
-                          {feedbackStats.totalFeedback}
-                          <span style={{fontSize:14,fontWeight:400,color:C.inkLight}}>/{feedbackStats.totalAssessments}</span>
-                        </div>
-                        <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight,
-                          textTransform:"uppercase",letterSpacing:"0.06em",marginTop:2}}>
-                          Responded ({feedbackStats.totalAssessments > 0 ? Math.round((feedbackStats.totalFeedback / feedbackStats.totalAssessments) * 100) : 0}%)
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Recent open text */}
-                    {recentFeedback.length > 0 && (
-                      <>
-                        <div style={{borderTop:`1px solid ${C.border}`,paddingTop:16,marginTop:4}}>
-                          <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
-                            textTransform:"uppercase",color:C.inkLight,marginBottom:12}}>What People Are Saying</div>
-                          <div style={{maxHeight:320,overflowY:"auto",display:"flex",flexDirection:"column",gap:12}}>
-                            {recentFeedback.map((fb, i) => (
-                              <div key={i} style={{padding:"12px 16px",background:C.bg,borderRadius:10,
-                                borderLeft:`3px solid ${seasonColors[fb.season] || C.sage}`}}>
-                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                                    <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,color:C.ink}}>
-                                      {fb.name}
-                                    </span>
-                                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight}}>
-                                      {fb.season} · {fb.profile_name}
-                                    </span>
-                                  </div>
-                                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight}}>
-                                    {timeAgo(fb.created_at)}
-                                  </span>
-                                </div>
-                                <p style={{fontFamily:"'Playfair Display',serif",fontStyle:"italic",
-                                  fontSize:14,lineHeight:1.55,color:C.inkMid,margin:0}}>
-                                  &ldquo;{fb.text}&rdquo;
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
+              {/* ── Feedback compact stats ── */}
+              {feedbackStats.totalFeedback > 0 && (
+                <div onClick={()=>setTab("feedback")} style={{
+                  display:"flex",gap:32,background:C.white,border:`1px solid ${C.border}`,borderRadius:14,
+                  padding:"16px 24px",marginBottom:24,cursor:"pointer",transition:"box-shadow 0.15s",alignItems:"center",
+                }}
+                  onMouseEnter={e=>e.currentTarget.style.boxShadow="0 2px 10px rgba(28,27,25,0.08)"}
+                  onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}
+                >
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.08em",
+                    textTransform:"uppercase",color:C.inkLight}}>Feedback</div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:4}}>
+                    <span style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:C.ink}}>
+                      {feedbackStats.avgAccuracy || "—"}
+                    </span>
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight}}>/5 accuracy</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:4}}>
+                    <span style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:C.ink}}>
+                      {feedbackStats.insightYesRate != null ? `${feedbackStats.insightYesRate}%` : "—"}
+                    </span>
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight}}>new insight</span>
+                  </div>
+                  <div style={{marginLeft:"auto",display:"flex",alignItems:"baseline",gap:4}}>
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight}}>
+                      {feedbackStats.totalFeedback} of {feedbackStats.totalAssessments} responded
+                    </span>
+                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style={{marginLeft:4}}>
+                      <path d="M5 3l4 4-4 4" stroke={C.inkLight} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+              )}
 
               {/* Life events + Confidence row */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24}}>
@@ -1148,6 +1110,107 @@ export default function AdminClient({
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ══ FEEDBACK TAB ══════════════════════════════════════ */}
+          {tab === "feedback" && (
+            <div>
+              {/* Hero numbers */}
+              <div style={{display:"flex",gap:48,marginBottom:32,paddingLeft:4}}>
+                <div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>Avg Accuracy</div>
+                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:56,
+                    fontWeight:700,color:C.ink,lineHeight:1}}>
+                    {feedbackStats.avgAccuracy || "—"}<span style={{fontSize:24,fontWeight:400,color:C.inkLight}}>/5</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>New Insight Rate</div>
+                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:56,
+                    fontWeight:700,color:C.sage,lineHeight:1}}>
+                    {feedbackStats.insightYesRate != null ? feedbackStats.insightYesRate : "—"}<span style={{fontSize:24,fontWeight:400}}>%</span>
+                    <span style={{fontSize:14,fontWeight:400,color:C.inkLight,marginLeft:8}}>said yes</span>
+                  </div>
+                </div>
+                <div style={{marginLeft:"auto",textAlign:"right"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
+                    textTransform:"uppercase",color:C.inkLight,marginBottom:6}}>Response Rate</div>
+                  <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:32,
+                    fontWeight:700,color:C.inkMid,lineHeight:1}}>
+                    {feedbackStats.totalFeedback}<span style={{fontSize:16,fontWeight:400,color:C.inkLight}}>/{feedbackStats.totalAssessments}</span>
+                  </div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkLight,marginTop:4}}>
+                    {feedbackStats.totalAssessments > 0 ? Math.round((feedbackStats.totalFeedback / feedbackStats.totalAssessments) * 100) : 0}% responded
+                  </div>
+                </div>
+              </div>
+
+              {/* All feedback rows */}
+              {allFeedback.length === 0 ? (
+                <div style={{textAlign:"center",padding:"40px 0"}}>
+                  <p style={{fontSize:14,color:C.inkLight}}>No feedback submitted yet.</p>
+                </div>
+              ) : (
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {allFeedback.map(fb => (
+                    <Link key={fb.id} href={`/admin/assessment/${fb.id}`} style={{textDecoration:"none"}}>
+                      <div style={{
+                        background:C.white,border:`1px solid ${C.border}`,borderRadius:12,
+                        padding:"16px 20px",cursor:"pointer",transition:"box-shadow 0.15s",
+                        borderLeft:`3px solid ${seasonColors[fb.season] || C.sage}`,
+                      }}
+                        onMouseEnter={e=>e.currentTarget.style.boxShadow="0 2px 10px rgba(28,27,25,0.08)"}
+                        onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}
+                      >
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:fb.text ? 8 : 0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,color:C.ink}}>
+                              {fb.name}
+                            </span>
+                            <SeasonBadge season={fb.season} />
+                            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.inkMid}}>
+                              {fb.profile_name}
+                            </span>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:12}}>
+                            {fb.accuracy != null && (
+                              <span style={{display:"inline-flex",alignItems:"center",gap:3}}>
+                                {[1,2,3,4,5].map(n=>(
+                                  <span key={n} style={{width:7,height:7,borderRadius:"50%",display:"inline-block",
+                                    background:n<=fb.accuracy! ? C.red : C.border}}/>
+                                ))}
+                                <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.inkMid,marginLeft:3}}>
+                                  {fb.accuracy}/5
+                                </span>
+                              </span>
+                            )}
+                            {fb.new_insight != null && (
+                              <span style={{
+                                display:"inline-block",padding:"2px 7px",borderRadius:4,
+                                background:fb.new_insight ? C.sageLight : C.redLight,
+                                fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.04em",
+                                textTransform:"uppercase",color:fb.new_insight ? C.sage : C.red,fontWeight:500,
+                              }}>{fb.new_insight ? "New insight" : "No insight"}</span>
+                            )}
+                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.inkLight}}>
+                              {formatDateTime(fb.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                        {fb.text && (
+                          <p style={{fontFamily:"'Playfair Display',serif",fontStyle:"italic",
+                            fontSize:14,lineHeight:1.55,color:C.inkMid,margin:0}}>
+                            &ldquo;{fb.text}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
                 </div>
               )}
             </div>
