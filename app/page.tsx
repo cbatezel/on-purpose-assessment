@@ -485,21 +485,40 @@ export default function App() {
   const [result,  setResult]  = useState<ResultData | null>(null);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
+  // Whether demographics were loaded from a previous assessment (skip step 2)
+  const [hasProfile, setHasProfile] = useState(false);
   // Track whether auto-advance is locked (prevents double-fire)
   const [advancing, setAdvancing] = useState(false);
 
-  // Check for existing auth session on mount
+  // Check for existing auth session on mount, prefill from previous assessment
   useEffect(()=>{
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } })=>{
+    supabase.auth.getUser().then(async ({ data: { user } })=>{
       if (!user) return;
       setAuthed(true);
-      // Pre-fill form fields from session if empty
+      // Pre-fill form fields from session
       setForm(f=>({
         ...f,
         email: f.email || user.email || "",
         name: f.name || user.user_metadata?.name || "",
       }));
+      // Fetch most recent assessment to pre-fill demographics
+      try {
+        const res = await fetch(`/api/assessment/profile?email=${encodeURIComponent(user.email || "")}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile) {
+            const p = data.profile;
+            setForm(f => ({
+              ...f,
+              dobMonth: f.dobMonth || (p.birth_year ? "" : ""),
+              dobYear: f.dobYear || (p.birth_year ? String(p.birth_year) : ""),
+              gender: f.gender || p.gender || "",
+            }));
+            if (p.birth_year) setHasProfile(true);
+          }
+        }
+      } catch {}
     });
   },[]);
 
@@ -732,14 +751,17 @@ export default function App() {
       // Don't trigger if user is in an input/select
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag==="SELECT") return;
-      if (step===1 && can1) setStep(2);
+      if (step===1 && can1) {
+        // If authed and has profile, skip demographics
+        setStep(authed && hasProfile ? 3 : 2);
+      }
       else if (step===2 && can2) setStep(3);
       else if (step===3 && can3) setStep(4);
       else if (step===4 && can4) { setScIndex(0); setStep(5); }
     };
     window.addEventListener("keydown", handler);
     return ()=>window.removeEventListener("keydown", handler);
-  },[step, can1, can2, can3, can4]);
+  },[step, can1, can2, can3, can4, authed, hasProfile]);
 
   const toggleEvent = (ev: string) => {
     if (ev==="None of these"){ setForm(f=>({...f,lifeEvents:["None of these"]})); return; }
@@ -752,9 +774,21 @@ export default function App() {
   // Total displayed questions: 5 season confirmation + 17 expertise/passion cards = 22 cards
   const totalDisplayedQ = scQuestions.length + totalQ;
 
-  // Progress bar value
+  // Progress bar value — adjust pre-question percentage for returning users
+  const skipsEmailStep = authed;
+  const skipsDemoStep = authed && hasProfile;
+  // Pre-question steps: landing(0), email(1), demo(2), life(3), self-season(4)
+  // Returning users skip 1 and/or 2, so compress the pre-question range (0-26%)
+  const preQuestionPct = (() => {
+    if (step === 0) return 0;
+    if (step === 1) return 5;
+    if (step === 2) return 14;
+    if (step === 3) return skipsDemoStep ? (skipsEmailStep ? 8 : 14) : 20;
+    if (step === 4) return 26;
+    return 26;
+  })();
   const progress =
-    step===0?0 : step===1?5 : step===2?14 : step===3?20 : step===4?26 :
+    step <= 4 ? preQuestionPct :
     step===5 ? 26+Math.round((scIndex/totalDisplayedQ)*66) :
     step===6 ? 26+Math.round(((scQuestions.length+qIndex)/totalDisplayedQ)*66) :
     step===7?95 : 100;
@@ -821,7 +855,11 @@ export default function App() {
             <p style={{fontSize:16,lineHeight:1.65,color:C.inkMid,marginBottom:36,maxWidth:340}}>
               A short diagnostic for your clarity and engagement with purpose.
             </p>
-            <button onClick={()=>setStep(1)} style={{
+            <button onClick={()=>{
+              if (authed && hasProfile) { setStep(3); }
+              else if (authed) { setStep(2); }
+              else { setStep(1); }
+            }} style={{
               display:"flex",alignItems:"center",justifyContent:"center",
               width:"100%",maxWidth:260,height:50,borderRadius:10,border:"none",
               fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:600,
@@ -863,8 +901,23 @@ export default function App() {
                     email: form.email,
                     options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
                   }).catch(() => {});
+                  // For new users, also check if they have a profile from a previous assessment
+                  fetch(`/api/assessment/profile?email=${encodeURIComponent(form.email)}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                      if (data?.profile?.birth_year) {
+                        setForm(f => ({
+                          ...f,
+                          dobYear: f.dobYear || String(data.profile.birth_year),
+                          gender: f.gender || data.profile.gender || "",
+                        }));
+                        setHasProfile(true);
+                      }
+                    })
+                    .catch(() => {});
                 }
-                setStep(2);
+                // Skip demographics if we already have profile data
+                setStep(hasProfile ? 3 : 2);
               }} disabled={!can1}>Continue</PrimaryBtn>
               <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
@@ -878,7 +931,7 @@ export default function App() {
         {/* ── 2: PERSONAL CONTEXT ────────────────────────────── */}
         {step===2 && (
           <>
-            <TopBar onBack={()=>setStep(1)} label="A bit of context"/>
+            <TopBar onBack={()=>setStep(skipsEmailStep ? 0 : 1)} label="A bit of context"/>
             <Screen>
               <SectionTitle>Tell us a little more about where you are.</SectionTitle>
               <BodyText>This helps us personalize your results. It won&apos;t change your scores.</BodyText>
@@ -940,7 +993,7 @@ export default function App() {
         {/* ── 3: LIFE EVENTS ─────────────────────────────────── */}
         {step===3 && (
           <>
-            <TopBar onBack={()=>setStep(2)} label="A bit of context"/>
+            <TopBar onBack={()=>setStep(skipsDemoStep ? 0 : (skipsEmailStep ? 2 : 2))} label="A bit of context"/>
             <Screen>
               <SectionTitle>Has anything shifted recently?</SectionTitle>
               <BodyText>Have any of these significantly impacted where you are right now? This won&apos;t change your scores — it helps us understand your context.</BodyText>
