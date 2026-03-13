@@ -37,18 +37,6 @@ function Divider() {
   return <hr style={{border:"none",borderTop:`1px solid ${C.border}`,margin:"28px 0"}}/>;
 }
 
-function SecondaryBtn({children,onClick}: {children: React.ReactNode; onClick?: () => void}) {
-  return (
-    <button onClick={onClick} style={{
-      display:"flex",alignItems:"center",justifyContent:"center",
-      width:"100%",height:42,borderRadius:9,
-      border:`1.5px solid ${C.red}`,background:"transparent",
-      fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,
-      color:C.red,cursor:"pointer",transition:"background 0.15s",
-    }}>{children}</button>
-  );
-}
-
 // Staged reveal: returns inline style for opacity/transform transition
 function revealStyle(stage: number, threshold: number, animated: boolean): React.CSSProperties {
   if (!animated) return {};
@@ -59,8 +47,63 @@ function revealStyle(stage: number, threshold: number, animated: boolean): React
   };
 }
 
+// Hover-enabled CTA button
+function CtaButton({children,href,onClick}: {children: React.ReactNode; href?: string; onClick?: () => void}) {
+  const style: React.CSSProperties = {
+    display:"flex",alignItems:"center",justifyContent:"center",
+    width:"100%",height:42,borderRadius:9,
+    border:`1.5px solid ${C.red}`,background:"transparent",
+    fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,
+    color:C.red,cursor:"pointer",textDecoration:"none",
+    transition:"transform 0.2s, background 0.2s, color 0.2s",
+  };
+  const enter = (e: React.MouseEvent) => {
+    const t = e.currentTarget as HTMLElement;
+    t.style.transform="scale(1.02)"; t.style.background=C.red; t.style.color="white";
+  };
+  const leave = (e: React.MouseEvent) => {
+    const t = e.currentTarget as HTMLElement;
+    t.style.transform="scale(1)"; t.style.background="transparent"; t.style.color=C.red;
+  };
+  if (href) return <a href={href} target="_blank" rel="noopener noreferrer" style={style} onMouseEnter={enter} onMouseLeave={leave}>{children}</a>;
+  return <button onClick={onClick} style={style} onMouseEnter={enter} onMouseLeave={leave}>{children}</button>;
+}
+
+// Share pill button with hover
+function SharePill({children,onClick}: {children: React.ReactNode; onClick: () => void}) {
+  return (
+    <button onClick={onClick} style={{
+      display:"inline-flex",alignItems:"center",gap:6,
+      padding:"9px 15px",border:`1.5px solid ${C.border}`,
+      borderRadius:100,fontFamily:"'DM Sans',sans-serif",
+      fontSize:13,fontWeight:500,color:C.ink,
+      cursor:"pointer",background:C.white,
+      transition:"all 0.2s",
+    }}
+      onMouseEnter={e=>{e.currentTarget.style.background=C.sageLight;e.currentTarget.style.borderColor=C.sage;}}
+      onMouseLeave={e=>{e.currentTarget.style.background=C.white;e.currentTarget.style.borderColor=C.border;}}
+    >{children}</button>
+  );
+}
+
+// Card download button with hover
+function CardBtn({children,onClick}: {children: React.ReactNode; onClick: () => void}) {
+  return (
+    <button onClick={onClick} style={{
+      display:"inline-flex",alignItems:"center",gap:6,
+      padding:"10px 18px",border:`1.5px solid ${C.border}`,
+      borderRadius:8,fontFamily:"'DM Sans',sans-serif",
+      fontSize:13,fontWeight:500,color:C.ink,
+      cursor:"pointer",background:C.white,transition:"all 0.2s",
+    }}
+      onMouseEnter={e=>{e.currentTarget.style.background=C.sageLight;e.currentTarget.style.borderColor=C.sage;}}
+      onMouseLeave={e=>{e.currentTarget.style.background=C.white;e.currentTarget.style.borderColor=C.border;}}
+    >{children}</button>
+  );
+}
+
 export default function ResultsDisplay({
-  behavioral, profile, gap, mismatch, email,
+  behavioral, profile, gap, mismatch,
   showShare = false, showStartOver = false, onStartOver, animated = true,
   isAuthenticated = false, saveFailed = false,
   seasonConfidence, confidenceNarrative, divergenceNarrative, lifeEventsNarrative,
@@ -86,7 +129,12 @@ export default function ResultsDisplay({
 
   const handleShare = async(platform: string) => {
     const text = `I just took the On Purpose Assessment and got "${profile.name}". Find out where you are: `;
-    const url  = typeof window !== "undefined" ? window.location.origin : "";
+    const url  = "https://onpurposeassessment.com";
+    if (platform==="native"){
+      if (navigator.share) { try { await navigator.share({title:"On Purpose Assessment",text,url}); } catch {} }
+      else { try { await navigator.clipboard.writeText(text+url); setCopied(true); setTimeout(()=>setCopied(false),2000); } catch {} }
+      return;
+    }
     if (platform==="copy"){
       try{await navigator.clipboard.writeText(url);}catch{}
       setCopied(true); setTimeout(()=>setCopied(false),2000); return;
@@ -150,7 +198,6 @@ export default function ResultsDisplay({
     ctx.font = `bold ${Math.round((isStory ? 96 : 48) * scale)}px "Playfair Display", Georgia, serif`;
     ctx.fillStyle = "#1C1B19";
     ctx.letterSpacing = "0px";
-    // Word wrap for long names
     const nameWords = profile.name.split(" ");
     let nameLine = "";
     let nameLineY = nameY;
@@ -180,8 +227,7 @@ export default function ResultsDisplay({
     const mirrorY = nameLineY + Math.round((isStory ? 100 : 50) * scale);
     ctx.font = `italic ${Math.round((isStory ? 40 : 22) * scale)}px "Playfair Display", Georgia, serif`;
     ctx.fillStyle = "#4A4742";
-    // Word wrap mirror line
-    const mirrorWords = (`"${profile.mirrorLine}"`).split(" ");
+    const mirrorWords = (`\u201C${profile.mirrorLine}\u201D`).split(" ");
     let mirrorLine = "";
     let mirrorLineY = mirrorY;
     const mirrorLineH = Math.round((isStory ? 56 : 32) * scale);
@@ -234,7 +280,6 @@ export default function ResultsDisplay({
       setCopiedImg(true);
       setTimeout(() => setCopiedImg(false), 2000);
     } catch {
-      // Fallback: download instead
       handleDownload(1200, 630, "on-purpose-results.png");
     }
   };
@@ -284,8 +329,6 @@ export default function ResultsDisplay({
         fontSize:"clamp(34px,7vw,50px)",fontWeight:700,color:C.ink,
         marginBottom:12,lineHeight:1.1}}>
         {profile.name}
-        <span style={{display:"inline-block",width:9,height:9,borderRadius:"50%",
-          background:C.red,marginLeft:4,verticalAlign:"middle",marginBottom:5}}/>
       </h1>
 
       <div style={rs(3)}>
@@ -354,7 +397,11 @@ export default function ResultsDisplay({
         <div style={{
           textAlign:"center",padding:"32px 22px",background:C.white,
           borderRadius:14,border:`1px solid ${C.border}`,
-        }}>
+          transition:"box-shadow 0.2s",
+        }}
+          onMouseEnter={e=>e.currentTarget.style.boxShadow="0 2px 16px rgba(28,27,25,0.08)"}
+          onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}
+        >
           <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.1em",
             textTransform:"uppercase",color:C.sage,marginBottom:13}}>
             A question worth sitting with
@@ -370,6 +417,62 @@ export default function ResultsDisplay({
 
       {/* What's Next + CTAs + Share — all fade in last */}
       <div style={rs(6)}>
+
+        {/* ── Share Section (prominent, before CTAs) ── */}
+        {showShare && (
+          <>
+            <div style={{textAlign:"center",paddingBottom:8}}>
+              <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:22,
+                fontWeight:600,color:C.ink,marginBottom:7}}>
+                Share your results<span style={{color:C.red}}>.</span>
+              </div>
+              <p style={{fontSize:14,color:C.inkMid,marginBottom:18,lineHeight:1.6}}>
+                Send this to someone who knows you well. See if they agree.
+              </p>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:8}}>
+                <SharePill onClick={()=>handleShare("native")}>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 8h8M8 4v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><rect x="1" y="1" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>
+                  Share
+                </SharePill>
+                <SharePill onClick={()=>handleShare("copy")}>{copied?"Copied":"Copy link"}</SharePill>
+                <SharePill onClick={()=>handleShare("x")}>Share on X</SharePill>
+                <SharePill onClick={()=>handleShare("li")}>LinkedIn</SharePill>
+                <SharePill onClick={()=>handleShare("email")}>Email</SharePill>
+              </div>
+            </div>
+
+            {/* Shareable results card */}
+            <div style={{paddingTop:8,marginBottom:8}}>
+              <div ref={previewContainerRef} style={{marginBottom:12}} />
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
+                <CardBtn onClick={()=>handleDownload(1200,630,"on-purpose-results.png")}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M7 1v9M3 7l4 4 4-4M2 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Download Card
+                </CardBtn>
+                <CardBtn onClick={()=>handleDownload(1080,1920,"on-purpose-story.png")}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <rect x="3" y="1" width="8" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+                    <line x1="5.5" y1="11" x2="8.5" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                  </svg>
+                  Story Size
+                </CardBtn>
+                <CardBtn onClick={handleCopyImage}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+                    <path d="M10 4V3a1.5 1.5 0 00-1.5-1.5H3A1.5 1.5 0 001.5 3v5.5A1.5 1.5 0 003 10h1" stroke="currentColor" strokeWidth="1.3"/>
+                  </svg>
+                  {copiedImg ? "Copied" : "Copy Image"}
+                </CardBtn>
+              </div>
+            </div>
+
+            <Divider/>
+          </>
+        )}
+
+        {/* What's Next */}
         <div style={{paddingTop:16}}>
           <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
             fontSize:"clamp(24px,5vw,32px)",fontWeight:700,lineHeight:1.2,
@@ -382,33 +485,28 @@ export default function ResultsDisplay({
           <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:14}}>
             {[
               {label:"Cohort",title:"Coaching Cohort",    body:"Work through purpose in a small group with others in a similar season. Built for people ready to go deeper together."},
-              {label:"Summit",title:"Spring Summit",  body:"A focused experience for people ready to go deep on what's next. Two days. Small group. Real clarity."},
+              {label:"Summit",title:"Spring Summit",  body:"A focused experience for people ready to go deep on what\u2019s next. Two days. Small group. Real clarity."},
               {label:"Go Deeper",title:"On Purpose by Beau Johnson", body:"Most ways of finding purpose don\u2019t work. If you\u2019ve wrestled with wanting to live big without losing contentment, this book is for you. Clarity about our lives is possible. Purpose is within reach in every industry and every stage of life. This book shows you how.", href:"https://www.amazon.com/Purpose-Beau-Johnson/dp/B0FRMXCDWS", btnText:"Get the Book"},
             ].map(cta=>(
               <div key={cta.label} style={{background:C.white,border:`1px solid ${C.border}`,
-                borderRadius:12,padding:22}}>
+                borderRadius:12,padding:22,transition:"box-shadow 0.2s"}}
+                onMouseEnter={e=>e.currentTarget.style.boxShadow="0 2px 16px rgba(28,27,25,0.08)"}
+                onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}
+              >
                 <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.1em",
                   textTransform:"uppercase",color:C.red,marginBottom:6}}>{cta.label}</div>
                 <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,
                   fontWeight:600,color:C.ink,marginBottom:8}}>{cta.title}</div>
                 <p style={{fontSize:14,lineHeight:1.6,color:C.inkMid,marginBottom:16}}>{cta.body}</p>
-                {cta.href ? (
-                  <a href={cta.href} target="_blank" rel="noopener noreferrer" style={{
-                    display:"flex",alignItems:"center",justifyContent:"center",
-                    width:"100%",height:42,borderRadius:9,
-                    border:`1.5px solid ${C.red}`,background:"transparent",
-                    fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,
-                    color:C.red,cursor:"pointer",textDecoration:"none",transition:"background 0.15s",
-                  }}>{cta.btnText}</a>
-                ) : (
-                  <SecondaryBtn>Learn More &rarr;</SecondaryBtn>
-                )}
+                <CtaButton href={cta.href}>{cta.href ? cta.btnText : <>Learn More &rarr;</>}</CtaButton>
               </div>
             ))}
           </div>
           <p style={{textAlign:"center",fontSize:12,color:C.inkLight}}>
             Not sure which is right for you?{" "}
-            <a href="mailto:hello@onpurpose.com" style={{color:C.red,textDecoration:"none"}}>
+            <a href="mailto:hello@onpurpose.com" style={{color:C.red,textDecoration:"none",transition:"opacity 0.2s"}}
+              onMouseEnter={e=>e.currentTarget.style.opacity="0.7"}
+              onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
               Send us a message.
             </a>
           </p>
@@ -422,99 +520,6 @@ export default function ResultsDisplay({
               Your results are shown below but may not have saved. Visit your dashboard later to confirm.
             </p>
           </div>
-        )}
-
-        {showShare && (
-          <>
-            <Divider/>
-
-            {/* Share your snapshot */}
-            <div style={{textAlign:"center",paddingTop:24}}>
-              <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:20,
-                fontWeight:600,color:C.ink,marginBottom:7}}>
-                Share your snapshot<span style={{color:C.red}}>.</span>
-              </div>
-              <p style={{fontSize:14,color:C.inkMid,marginBottom:18,lineHeight:1.6}}>
-                Send this to someone who knows you well. See if they agree.
-              </p>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
-                {[
-                  {id:"copy",  label:copied?"Copied":"Copy link"},
-                  {id:"x",    label:"Share on X"},
-                  {id:"li",   label:"Share on LinkedIn"},
-                  {id:"email",label:"Email a friend"},
-                ].map(s=>(
-                  <button key={s.id} onClick={()=>handleShare(s.id)} style={{
-                    display:"inline-flex",alignItems:"center",gap:6,
-                    padding:"9px 15px",border:`1.5px solid ${C.border}`,
-                    borderRadius:100,fontFamily:"'DM Sans',sans-serif",
-                    fontSize:13,fontWeight:500,color:C.ink,
-                    cursor:"pointer",background:C.white,transition:"all 0.15s",
-                  }}>{s.label}</button>
-                ))}
-              </div>
-              {email && (
-                <p style={{fontSize:12,color:C.inkLight,marginTop:18,lineHeight:1.55}}>
-                  Your full results are on their way to {email}.<br/>
-                  Check your inbox in the next few minutes.
-                </p>
-              )}
-            </div>
-
-            <Divider/>
-
-            {/* Shareable results card */}
-            <div style={{paddingTop:8}}>
-              <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.1em",
-                textTransform:"uppercase",color:C.sage,marginBottom:14,textAlign:"center"}}>
-                Share Your Results
-              </div>
-
-              {/* Card preview */}
-              <div ref={previewContainerRef} style={{marginBottom:16}} />
-
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
-                <button onClick={()=>handleDownload(1200,630,"on-purpose-results.png")} style={{
-                  display:"inline-flex",alignItems:"center",gap:6,
-                  padding:"10px 18px",border:`1.5px solid ${C.border}`,
-                  borderRadius:8,fontFamily:"'DM Sans',sans-serif",
-                  fontSize:13,fontWeight:500,color:C.ink,
-                  cursor:"pointer",background:C.white,transition:"all 0.15s",
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M7 1v9M3 7l4 4 4-4M2 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Download Card
-                </button>
-                <button onClick={()=>handleDownload(1080,1920,"on-purpose-story.png")} style={{
-                  display:"inline-flex",alignItems:"center",gap:6,
-                  padding:"10px 18px",border:`1.5px solid ${C.border}`,
-                  borderRadius:8,fontFamily:"'DM Sans',sans-serif",
-                  fontSize:13,fontWeight:500,color:C.ink,
-                  cursor:"pointer",background:C.white,transition:"all 0.15s",
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <rect x="3" y="1" width="8" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
-                    <line x1="5.5" y1="11" x2="8.5" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                  </svg>
-                  Story Size
-                </button>
-                <button onClick={handleCopyImage} style={{
-                  display:"inline-flex",alignItems:"center",gap:6,
-                  padding:"10px 18px",border:`1.5px solid ${C.border}`,
-                  borderRadius:8,fontFamily:"'DM Sans',sans-serif",
-                  fontSize:13,fontWeight:500,color:C.ink,
-                  cursor:"pointer",background:C.white,transition:"all 0.15s",
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
-                    <path d="M10 4V3a1.5 1.5 0 00-1.5-1.5H3A1.5 1.5 0 001.5 3v5.5A1.5 1.5 0 003 10h1" stroke="currentColor" strokeWidth="1.3"/>
-                  </svg>
-                  {copiedImg ? "Copied" : "Copy Image"}
-                </button>
-              </div>
-            </div>
-          </>
         )}
 
         {/* Sign-in link callout for non-authenticated users */}
@@ -532,22 +537,42 @@ export default function ResultsDisplay({
         {showStartOver && onStartOver && (
           <>
             <Divider/>
-            <div style={{textAlign:"center"}}>
+            <div style={{textAlign:"center",display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
               <button onClick={onStartOver} style={{
                 display:"inline-flex",alignItems:"center",justifyContent:"center",
                 padding:"10px 24px",border:`1.5px solid ${C.border}`,
                 borderRadius:10,fontFamily:"'DM Sans',sans-serif",
                 fontSize:14,fontWeight:500,color:C.inkMid,
-                cursor:"pointer",background:C.white,transition:"all 0.15s",
-              }}>Start Over</button>
+                cursor:"pointer",background:C.white,transition:"all 0.2s",
+              }}
+                onMouseEnter={e=>{e.currentTarget.style.color=C.ink;e.currentTarget.style.borderColor=C.ink;}}
+                onMouseLeave={e=>{e.currentTarget.style.color=C.inkMid;e.currentTarget.style.borderColor=C.border;}}
+              >Start Over</button>
+              {isAuthenticated && (
+                <a href="/dashboard" style={{
+                  display:"inline-flex",alignItems:"center",justifyContent:"center",
+                  padding:"10px 24px",border:`1.5px solid ${C.border}`,
+                  borderRadius:10,fontFamily:"'DM Sans',sans-serif",
+                  fontSize:14,fontWeight:500,color:C.inkMid,
+                  textDecoration:"none",transition:"all 0.2s",
+                }}
+                  onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.color=C.ink;(e.currentTarget as HTMLElement).style.borderColor=C.ink;}}
+                  onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.color=C.inkMid;(e.currentTarget as HTMLElement).style.borderColor=C.border;}}
+                >Go to Dashboard</a>
+              )}
             </div>
           </>
         )}
 
         <div style={{textAlign:"center",padding:"30px 0 4px",fontSize:11,
           fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em",
-          textTransform:"uppercase",color:C.inkLight}}>
-          Powered by Third Space
+          textTransform:"uppercase"}}>
+          <a href="https://thirdspacepublishing.com" target="_blank" rel="noopener noreferrer"
+            style={{color:C.inkLight,textDecoration:"none",transition:"color 0.2s"}}
+            onMouseEnter={e=>e.currentTarget.style.color=C.ink}
+            onMouseLeave={e=>e.currentTarget.style.color=C.inkLight}>
+            Powered by Third Space
+          </a>
         </div>
       </div>
     </div>

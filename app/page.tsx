@@ -114,6 +114,27 @@ interface Question {
   split?: { work: string; personal: string };
 }
 
+// A "display card" is a single full-screen question card.
+// Split questions become two cards (work + personal), each with their own answer key.
+interface DisplayCard {
+  id: string;        // answer key (e.g. "e7_work", "e7_personal", or "e1")
+  text: string;
+  section: "expertise" | "passion";
+}
+
+function expandToCards(questions: Question[], section: "expertise" | "passion"): DisplayCard[] {
+  const cards: DisplayCard[] = [];
+  for (const q of questions) {
+    if (q.split) {
+      cards.push({ id: `${q.id}_work`, text: q.split.work, section });
+      cards.push({ id: `${q.id}_personal`, text: q.split.personal, section });
+    } else {
+      cards.push({ id: q.id, text: q.text, section });
+    }
+  }
+  return cards;
+}
+
 // Questions stored by ID for scoring. Display order is defined separately below.
 const questionsById: Record<string, Question> = {
   e1: {id:"e1",text:"I regularly invest time improving my craft, even when no one is asking me to.",stage:"Influence"},
@@ -413,8 +434,13 @@ function PoweredBy() {
   return (
     <div style={{textAlign:"center",padding:"30px 0 4px",fontSize:11,
       fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em",
-      textTransform:"uppercase",color:C.inkLight}}>
-      Powered by Third Space
+      textTransform:"uppercase"}}>
+      <a href="https://thirdspacepublishing.com" target="_blank" rel="noopener noreferrer"
+        style={{color:C.inkLight,textDecoration:"none",transition:"color 0.2s"}}
+        onMouseEnter={e=>e.currentTarget.style.color=C.ink}
+        onMouseLeave={e=>e.currentTarget.style.color=C.inkLight}>
+        Powered by Third Space
+      </a>
     </div>
   );
 }
@@ -555,11 +581,12 @@ function AppInner() {
   const scQuestions = presumedSeason ? seasonConfirmationQuestions[presumedSeason] : [];
 
   // Build the question list for step 6 in shuffled display order
-  const allQ = [
-    ...expertiseDisplayOrder.map(q=>({...q,section:"expertise" as const})),
-    ...passionDisplayOrder.map(q=>({...q,section:"passion" as const})),
+  // Split questions expand into two separate full-screen cards
+  const allQ: DisplayCard[] = [
+    ...expandToCards(expertiseDisplayOrder, "expertise"),
+    ...expandToCards(passionDisplayOrder, "passion"),
   ];
-  const totalQ = allQ.length; // 17 question cards (9 expertise + 8 passion)
+  const totalQ = allQ.length; // 19 cards (10 expertise incl e7 split, 9 passion incl p4 split)
   const q = allQ[qIndex];
 
   // Scroll to top on step/question change
@@ -703,10 +730,17 @@ function AppInner() {
   },[step]); // eslint-disable-line
 
   // Validation (hoisted above effects that need them)
-  const can1 = form.name.trim() && form.email.includes("@");
-  const can2 = form.dobMonth && form.dobDay && form.dobYear;
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  const nameValid = form.name.trim().length >= 2;
+  const birthYearNum = parseInt(form.dobYear);
+  const birthYearValid = !!(form.dobYear && birthYearNum >= 1920 && birthYearNum <= new Date().getFullYear() - 10);
+  const can1 = nameValid && emailValid;
+  const can2 = form.dobMonth && form.dobDay && birthYearValid;
   const can3 = form.lifeEvents.length > 0;
   const can4 = !!form.selfSeason;
+  // Track whether user has attempted to submit each step (for showing inline errors)
+  const [tried1, setTried1] = useState(false);
+  const [tried2, setTried2] = useState(false);
 
   // Auto-advance after answer selection — debounced, locked to prevent double-fire
   const handleAnswer = useCallback((id: string, val: number) => {
@@ -727,28 +761,6 @@ function AppInner() {
     }, 400);
   },[advancing, qIndex, totalQ, step, scIndex, scQuestions.length]);
 
-  // Handle split question answers — both must be answered before advancing
-  const handleSplitAnswer = useCallback((baseId: string, subKey: "work" | "personal", val: number) => {
-    const fullId = `${baseId}_${subKey}`;
-    setAnswers(prev => {
-      const next = {...prev, [fullId]: val};
-      // Check if both work and personal are answered
-      const otherKey = subKey === "work" ? `${baseId}_personal` : `${baseId}_work`;
-      if (next[otherKey]) {
-        // Both answered — auto-advance after delay
-        if (!advancing) {
-          setAdvancing(true);
-          setTimeout(()=>{
-            setAdvancing(false);
-            if (qIndex < totalQ-1) setQIndex(i=>i+1);
-            else setStep(7);
-          }, 400);
-        }
-      }
-      return next;
-    });
-  },[advancing, qIndex, totalQ]);
-
   // Keyboard support for question screens (steps 5 and 6)
   useEffect(()=>{
     if (step !== 5 && step !== 6) return;
@@ -759,14 +771,9 @@ function AppInner() {
         if (e.key>="1" && e.key<="5") { handleAnswer(scQ.id, Number(e.key)); return; }
         if (e.key==="ArrowLeft") { if(scIndex===0) setStep(4); else setScIndex(i=>i-1); return; }
       } else if (step === 6 && q) {
-        if (q.split) {
-          // No keyboard shortcuts for split questions — they need two answers
-          if (e.key==="ArrowLeft") { if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(5); } else setQIndex(i=>i-1); return; }
-        } else {
-          if (e.key>="1" && e.key<="5") { handleAnswer(q.id, Number(e.key)); return; }
-          if (e.key==="Enter" && answers[q.id]) { handleAnswer(q.id, answers[q.id]); return; }
-          if (e.key==="ArrowLeft") { if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(5); } else setQIndex(i=>i-1); return; }
-        }
+        if (e.key>="1" && e.key<="5") { handleAnswer(q.id, Number(e.key)); return; }
+        if (e.key==="Enter" && answers[q.id]) { handleAnswer(q.id, answers[q.id]); return; }
+        if (e.key==="ArrowLeft") { if(qIndex===0) { setScIndex(scQuestions.length-1); setStep(5); } else setQIndex(i=>i-1); return; }
       }
     };
     window.addEventListener("keydown", handler);
@@ -787,11 +794,14 @@ function AppInner() {
       // Don't trigger if user is in an input/select
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag==="SELECT") return;
-      if (step===1 && can1) {
-        // If authed and has profile, skip demographics
-        setStep(authed && hasProfile ? 3 : 2);
+      if (step===1) {
+        setTried1(true);
+        if (can1) setStep(authed && hasProfile ? 3 : 2);
       }
-      else if (step===2 && can2) setStep(3);
+      else if (step===2) {
+        setTried2(true);
+        if (can2) setStep(3);
+      }
       else if (step===3 && can3) setStep(4);
       else if (step===4 && can4) { setScIndex(0); setStep(5); }
     };
@@ -807,7 +817,7 @@ function AppInner() {
     });
   };
 
-  // Total displayed questions: 5 season confirmation + 17 expertise/passion cards = 22 cards
+  // Total displayed questions: 5 season confirmation + 19 expertise/passion cards = 24 cards
   const totalDisplayedQ = scQuestions.length + totalQ;
 
   // Progress bar value — adjust pre-question percentage for returning users
@@ -900,14 +910,39 @@ function AppInner() {
               width:"100%",maxWidth:260,height:50,borderRadius:10,border:"none",
               fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:600,
               background:C.red,color:"white",cursor:"pointer",letterSpacing:"0.01em",
-            }}>Get Started</button>
+              transition:"transform 0.2s, background 0.2s",
+            }}
+              onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.03)";e.currentTarget.style.background="#9B1D2E";}}
+              onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.background=C.red;}}
+            >Get Started</button>
             <p style={{marginTop:24,fontSize:12,color:C.inkLight}}>
               Based on{" "}
               <a href="https://www.amazon.com/Purpose-Beau-Johnson/dp/B0FRMXCDWS" target="_blank" rel="noopener noreferrer"
-                style={{color:C.red,textDecoration:"none"}}>
+                style={{color:C.red,textDecoration:"none",transition:"opacity 0.2s"}}
+                onMouseEnter={e=>e.currentTarget.style.opacity="0.7"}
+                onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
                 <em>On Purpose</em> by Beau Johnson
               </a>
             </p>
+            <button onClick={async()=>{
+              const shareData = {title:"The On Purpose Assessment",text:"Take the On Purpose Assessment — a short diagnostic for your clarity and engagement with purpose.",url:"https://onpurposeassessment.com"};
+              if (navigator.share) { try { await navigator.share(shareData); } catch {} }
+              else { try { await navigator.clipboard.writeText("Take the On Purpose Assessment — a short diagnostic for your clarity and engagement with purpose. https://onpurposeassessment.com"); } catch {} }
+            }} style={{
+              display:"inline-flex",alignItems:"center",gap:5,marginTop:16,
+              padding:"7px 14px",border:`1.5px solid ${C.border}`,borderRadius:100,
+              fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:500,
+              color:C.inkLight,cursor:"pointer",background:C.white,
+              transition:"all 0.2s",
+            }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=C.ink;e.currentTarget.style.color=C.ink;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.inkLight;}}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <path d="M4 8h8M8 4v8M3 14h10a1 1 0 001-1V3a1 1 0 00-1-1H3a1 1 0 00-1 1v10a1 1 0 001 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Share
+            </button>
             <PoweredBy/>
           </div>
         )}
@@ -918,27 +953,36 @@ function AppInner() {
             <TopBar onBack={()=>setStep(0)} label="Let's get started"/>
             <Screen>
               <SectionTitle>First, a little about you.</SectionTitle>
-              <BodyText>Your results will be sent to your inbox.</BodyText>
               <Card>
                 <div style={fieldGap}>
                   <TextInput label="Name" value={form.name} placeholder="Your name"
                     autoComplete="name"
                     onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,name:e.target.value}))}/>
+                  {tried1 && !nameValid && (
+                    <p style={{fontSize:12,color:C.red,marginTop:5}}>Please enter your name.</p>
+                  )}
                 </div>
                 <TextInput label="Email address" value={form.email} type="email"
                   placeholder="your@email.com" autoComplete="email" inputMode="email"
                   onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,email:e.target.value}))}/>
+                {tried1 && form.email.trim() && !emailValid && (
+                  <p style={{fontSize:12,color:C.red,marginTop:5}}>Please enter a valid email address.</p>
+                )}
               </Card>
               <PrimaryBtn onClick={()=>{
+                setTried1(true);
+                if (!can1) return;
+                // Trim whitespace
+                setForm(f=>({...f, name: f.name.trim(), email: f.email.trim()}));
                 if (!authed) {
                   // Fire magic link in the background — don't block
                   const supabase = createClient();
                   supabase.auth.signInWithOtp({
-                    email: form.email,
+                    email: form.email.trim(),
                     options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
                   }).catch(() => {});
                   // For new users, also check if they have a profile from a previous assessment
-                  fetch(`/api/assessment/profile?email=${encodeURIComponent(form.email)}`)
+                  fetch(`/api/assessment/profile?email=${encodeURIComponent(form.email.trim())}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
                       if (data?.profile?.birth_year) {
@@ -954,7 +998,7 @@ function AppInner() {
                 }
                 // Skip demographics if we already have profile data
                 setStep(hasProfile ? 3 : 2);
-              }} disabled={!can1}>Continue</PrimaryBtn>
+              }} disabled={false}>Continue</PrimaryBtn>
               {!isMobile && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
                 Press Enter ↵ to continue
@@ -1015,7 +1059,15 @@ function AppInner() {
                   placeholder="What do you do?" autoComplete="organization-title"
                   onChange={(e: ChangeEvent<HTMLInputElement>)=>setForm(f=>({...f,vocation:e.target.value}))}/>
               </Card>
-              <PrimaryBtn onClick={()=>setStep(3)} disabled={!can2}>Continue</PrimaryBtn>
+              {tried2 && form.dobYear && !birthYearValid && (
+                <p style={{fontSize:12,color:C.red,marginTop:-8,marginBottom:8}}>Please enter a valid birth year.</p>
+              )}
+              <PrimaryBtn onClick={()=>{
+                setTried2(true);
+                if (!can2) return;
+                setForm(f=>({...f, vocation: f.vocation.trim()}));
+                setStep(3);
+              }} disabled={false}>Continue</PrimaryBtn>
               {!isMobile && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:C.inkLight,
                 fontFamily:"'DM Mono',monospace",letterSpacing:"0.04em"}}>
                 Press Enter ↵ to continue
@@ -1187,121 +1239,42 @@ function AppInner() {
 
             <div style={{flex:1,padding:"0 22px 32px",
               display:"flex",flexDirection:"column",maxWidth:600,width:"100%",margin:"0 auto"}}>
-
-              {q.split ? (
-                /* ── SPLIT QUESTION (work/personal) ── */
-                <>
-                  {/* Work sub-question */}
-                  <div style={{marginBottom:32}}>
-                    <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
-                      fontSize:"clamp(19px,3.5vw,24px)",fontWeight:600,lineHeight:1.35,
-                      color:C.ink,marginBottom:16}}>
-                      {q.split.work}
-                    </h2>
-                    <div style={{display:"flex",gap:8}}>
-                      {likertLabels.map((label,i)=>{
-                        const on = answers[`${q.id}_work`]===i+1;
-                        return (
-                          <div key={i} onClick={()=>handleSplitAnswer(q.id,"work",i+1)}
-                            title={label}
-                            style={{
-                              flex:1,display:"flex",alignItems:"center",justifyContent:"center",
-                              height:44,borderRadius:9,cursor:"pointer",
-                              border:`1.5px solid ${on?C.red:C.border}`,
-                              background:on?C.redLight:C.white,
-                              transition:"all 0.12s",userSelect:"none",
-                              touchAction:"manipulation",
-                              fontFamily:"'DM Mono',monospace",fontSize:14,
-                              fontWeight:on?600:400,color:on?C.red:C.inkLight,
-                            }}>
-                            {i+1}
-                          </div>
-                        );
-                      })}
+              <div style={{minHeight:140,display:"flex",alignItems:"flex-start"}}>
+                <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
+                  fontSize:"clamp(21px,4vw,28px)",fontWeight:600,lineHeight:1.35,
+                  color:C.ink}}>
+                  {q.text}
+                </h2>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:9}}>
+                {likertLabels.map((label,i)=>{
+                  const on = answers[q.id]===i+1;
+                  return (
+                    <div key={i} onClick={()=>handleAnswer(q.id,i+1)} style={{
+                      display:"flex",alignItems:"center",gap:13,
+                      padding:"13px 16px",borderRadius:9,cursor:"pointer",
+                      border:`1.5px solid ${on?C.red:C.border}`,
+                      borderLeft:`${on?3:1.5}px solid ${on?C.red:C.border}`,
+                      background:on?C.redLight:C.white,
+                      transition:"all 0.12s",userSelect:"none",
+                      touchAction:"manipulation",
+                    }}>
+                      <div style={{
+                        width:20,height:20,borderRadius:"50%",flexShrink:0,
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        background:on?C.red:"transparent",
+                        border:`2px solid ${on?C.red:C.border}`,
+                        transition:"all 0.12s",
+                      }}>
+                        {on && <div style={{width:8,height:8,borderRadius:"50%",background:"white"}}/>}
+                      </div>
+                      <span style={{fontSize:15,color:C.ink}}>{label}</span>
+                      {!isMobile && <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",
+                        fontSize:12,color:C.inkLight}}>{i+1}</span>}
                     </div>
-                    <div style={{display:"flex",justifyContent:"space-between",marginTop:4,
-                      fontSize:10,color:C.inkLight,fontFamily:"'DM Mono',monospace"}}>
-                      <span>Strongly Disagree</span>
-                      <span>Strongly Agree</span>
-                    </div>
-                  </div>
-
-                  {/* Personal sub-question */}
-                  <div>
-                    <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
-                      fontSize:"clamp(19px,3.5vw,24px)",fontWeight:600,lineHeight:1.35,
-                      color:C.ink,marginBottom:16}}>
-                      {q.split.personal}
-                    </h2>
-                    <div style={{display:"flex",gap:8}}>
-                      {likertLabels.map((label,i)=>{
-                        const on = answers[`${q.id}_personal`]===i+1;
-                        return (
-                          <div key={i} onClick={()=>handleSplitAnswer(q.id,"personal",i+1)}
-                            title={label}
-                            style={{
-                              flex:1,display:"flex",alignItems:"center",justifyContent:"center",
-                              height:44,borderRadius:9,cursor:"pointer",
-                              border:`1.5px solid ${on?C.red:C.border}`,
-                              background:on?C.redLight:C.white,
-                              transition:"all 0.12s",userSelect:"none",
-                              touchAction:"manipulation",
-                              fontFamily:"'DM Mono',monospace",fontSize:14,
-                              fontWeight:on?600:400,color:on?C.red:C.inkLight,
-                            }}>
-                            {i+1}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{display:"flex",justifyContent:"space-between",marginTop:4,
-                      fontSize:10,color:C.inkLight,fontFamily:"'DM Mono',monospace"}}>
-                      <span>Strongly Disagree</span>
-                      <span>Strongly Agree</span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                /* ── STANDARD QUESTION ── */
-                <>
-                  <div style={{minHeight:140,display:"flex",alignItems:"flex-start"}}>
-                    <h2 style={{fontFamily:"'Playfair Display',Georgia,serif",
-                      fontSize:"clamp(21px,4vw,28px)",fontWeight:600,lineHeight:1.35,
-                      color:C.ink}}>
-                      {q.text}
-                    </h2>
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:9}}>
-                    {likertLabels.map((label,i)=>{
-                      const on = answers[q.id]===i+1;
-                      return (
-                        <div key={i} onClick={()=>handleAnswer(q.id,i+1)} style={{
-                          display:"flex",alignItems:"center",gap:13,
-                          padding:"13px 16px",borderRadius:9,cursor:"pointer",
-                          border:`1.5px solid ${on?C.red:C.border}`,
-                          borderLeft:`${on?3:1.5}px solid ${on?C.red:C.border}`,
-                          background:on?C.redLight:C.white,
-                          transition:"all 0.12s",userSelect:"none",
-                          touchAction:"manipulation",
-                        }}>
-                          <div style={{
-                            width:20,height:20,borderRadius:"50%",flexShrink:0,
-                            display:"flex",alignItems:"center",justifyContent:"center",
-                            background:on?C.red:"transparent",
-                            border:`2px solid ${on?C.red:C.border}`,
-                            transition:"all 0.12s",
-                          }}>
-                            {on && <div style={{width:8,height:8,borderRadius:"50%",background:"white"}}/>}
-                          </div>
-                          <span style={{fontSize:15,color:C.ink}}>{label}</span>
-                          {!isMobile && <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",
-                            fontSize:12,color:C.inkLight}}>{i+1}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+                  );
+                })}
+              </div>
             </div>
             <PoweredBy/>
           </div>
@@ -1327,7 +1300,6 @@ function AppInner() {
             profile={result.profile}
             gap={result.gap}
             mismatch={result.mismatch}
-            email={form.email}
             showShare={true}
             showStartOver={true}
             onStartOver={()=>{
