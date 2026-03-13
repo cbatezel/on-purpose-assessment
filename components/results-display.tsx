@@ -440,7 +440,11 @@ export default function ResultsDisplay({
               </p>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:8}}>
                 <SharePill onClick={()=>handleShare("native")}>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 8h8M8 4v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><rect x="1" y="1" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 2v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                    <path d="M6 6l4-4 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M4 10v6a2 2 0 002 2h8a2 2 0 002-2v-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                   Share
                 </SharePill>
                 <SharePill onClick={()=>handleShare("copy")}>{copied?"Copied":"Copy link"}</SharePill>

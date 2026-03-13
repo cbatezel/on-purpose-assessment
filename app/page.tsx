@@ -879,12 +879,32 @@ function AppInner() {
             alignItems:"center",justifyContent:"center",
             textAlign:"center",padding:"48px 28px",maxWidth:480,margin:"0 auto",
             position:"relative"}}>
-            <Link href={authed ? "/dashboard" : "/login"} style={{
-              position:"absolute",top:20,right:4,
-              fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.06em",
-              color:C.inkLight,textDecoration:"none",padding:"6px 10px",
-              transition:"color 0.15s",
-            }}>{authed ? "Dashboard" : "Sign In"}</Link>
+            <div style={{position:"absolute",top:16,right:4,display:"flex",alignItems:"center",gap:6}}>
+              <button onClick={async()=>{
+                const shareData = {title:"The On Purpose Assessment",text:"Take the On Purpose Assessment — a short diagnostic for your clarity and engagement with purpose.",url:"https://onpurposeassessment.com"};
+                if (navigator.share) { try { await navigator.share(shareData); } catch {} }
+                else { try { await navigator.clipboard.writeText("https://onpurposeassessment.com"); } catch {} }
+              }} style={{
+                display:"inline-flex",alignItems:"center",justifyContent:"center",
+                width:32,height:32,borderRadius:"50%",border:`1.5px solid ${C.border}`,
+                background:"transparent",cursor:"pointer",color:C.inkLight,
+                transition:"all 0.2s",padding:0,
+              }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=C.ink;e.currentTarget.style.color=C.ink;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.inkLight;}}
+              >
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
+                  <path d="M10 2v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                  <path d="M6 6l4-4 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M4 10v6a2 2 0 002 2h8a2 2 0 002-2v-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <Link href={authed ? "/dashboard" : "/login"} style={{
+                fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.06em",
+                color:C.inkLight,textDecoration:"none",padding:"6px 10px",
+                transition:"color 0.15s",
+              }}>{authed ? "Dashboard" : "Sign In"}</Link>
+            </div>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:"0.12em",
               textTransform:"uppercase",color:C.sage,marginBottom:20}}>
               The On Purpose Assessment
@@ -894,8 +914,7 @@ function AppInner() {
               <h1 style={{fontFamily:"'Playfair Display',Georgia,serif",
                 fontSize:"clamp(30px,7vw,46px)",fontWeight:700,lineHeight:1.15,
                 color:C.ink,marginBottom:18}}>
-                Most people feel behind.<br/>
-                This will help you figure out why<span style={{color:C.red}}>.</span>
+                Most people feel behind. This will help you figure out why<span style={{color:C.red}}>.</span>
               </h1>
             </div>
             <p style={{fontSize:16,lineHeight:1.65,color:C.inkMid,marginBottom:36,maxWidth:340}}>
@@ -924,25 +943,6 @@ function AppInner() {
                 <em>On Purpose</em> by Beau Johnson
               </a>
             </p>
-            <button onClick={async()=>{
-              const shareData = {title:"The On Purpose Assessment",text:"Take the On Purpose Assessment — a short diagnostic for your clarity and engagement with purpose.",url:"https://onpurposeassessment.com"};
-              if (navigator.share) { try { await navigator.share(shareData); } catch {} }
-              else { try { await navigator.clipboard.writeText("Take the On Purpose Assessment — a short diagnostic for your clarity and engagement with purpose. https://onpurposeassessment.com"); } catch {} }
-            }} style={{
-              display:"inline-flex",alignItems:"center",gap:5,marginTop:16,
-              padding:"7px 14px",border:`1.5px solid ${C.border}`,borderRadius:100,
-              fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:500,
-              color:C.inkLight,cursor:"pointer",background:C.white,
-              transition:"all 0.2s",
-            }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=C.ink;e.currentTarget.style.color=C.ink;}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.inkLight;}}
-            >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                <path d="M4 8h8M8 4v8M3 14h10a1 1 0 001-1V3a1 1 0 00-1-1H3a1 1 0 00-1 1v10a1 1 0 001 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              Share
-            </button>
             <PoweredBy/>
           </div>
         )}
