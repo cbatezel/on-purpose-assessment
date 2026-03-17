@@ -649,7 +649,7 @@ export default function ResultsDisplay({
                 <p style={{fontSize:14,lineHeight:1.6,color:C.inkMid,marginBottom:16}}>
                   A focused experience for people ready to go deep on what&apos;s next. Two days. Small group. Real clarity.
                 </p>
-                <CtaButton href="https://thirdspacepublishing.com">Learn More &rarr;</CtaButton>
+                <CtaButton href="https://thirdspacepublishing.com/spring-summit">Learn More &rarr;</CtaButton>
               </div>
             )}
 
